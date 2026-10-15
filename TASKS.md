@@ -10,7 +10,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 - [x] **1.4 Frontend skeleton.** Vue 3 + TypeScript + Vite in `frontend/`, Nuxt UI through its Vite plugin, Vite proxy for `/api` to `localhost:8000`. Check: `npm run dev` shows a page that displays the health response.
 - [x] **1.5 Frontend tooling.** ESLint, Prettier, vue-tsc and Vitest, with npm scripts `lint`, `format`, `typecheck`, `test`. Check: `npm run lint`, `npm run typecheck` and `npm run test` pass.
 - [x] **1.6 Development database.** `compose.yaml` with `db` only (Postgres, healthcheck, named volume) and an init script that creates `workshops_test`. Check: `docker compose up -d --wait db` reports healthy and both databases exist.
-- [ ] **1.7 Makefile.** `dev-db`, `lint`, `test`. Check: `make lint` and `make test` run both sides; `make dev-db` starts the database (migrations and seed join in section 2).
+- [x] **1.7 Makefile.** `dev-db`, `lint`, `test`. Check: `make lint` and `make test` run both sides; `make dev-db` starts the database (migrations and seed join in section 2).
 
 ## 2. Workshop data
 
