@@ -18,7 +18,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 - [x] **2.2 Workshops table.** Model and migration: `id`, `slug` (unique), `title`, `starts_at`, `capacity`, `reserved` (default 0), `CHECK (reserved BETWEEN 0 AND capacity)`. Check: a test shows that setting `reserved` above `capacity` fails.
 - [x] **2.3 Reservations table.** Model and migration: `id`, `workshop_id`, `name`, `email`, `status` (`active` or `cancelled`), timestamps, and the partial unique index on `(workshop_id, lower(email)) WHERE status = 'active'`. Check: a second active reservation for the same workshop and email in any letter case fails; one after a cancellation succeeds.
 - [x] **2.4 Seed script.** `python -m app.seed` inserts about six workshops, one with capacity 1; `ON CONFLICT DO NOTHING` on slug; runs only when `SEED_DATA=true`. Check: running it twice leaves the same rows. `make dev-db` now migrates and seeds.
-- [ ] **2.5 Test fixtures.** Tests use `workshops_test`, migrate once per session and truncate tables between tests. Check: two tests that insert the same slug both pass.
+- [x] **2.5 Test fixtures.** Tests use `workshops_test`, migrate once per session and truncate tables between tests. Check: two tests that insert the same slug both pass.
 
 ## 3. List workshops
 
