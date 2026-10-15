@@ -3,8 +3,11 @@ name = "workshop-reservations"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.20.0",
+    "asyncpg>=0.32.0",
     "fastapi>=0.143.1",
     "pydantic-settings>=2.16.0",
+    "sqlalchemy[asyncio]>=2.1.4",
     "uvicorn>=0.54.0",
 ]
 
