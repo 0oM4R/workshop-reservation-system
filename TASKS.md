@@ -4,7 +4,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 1. Foundation
 
-- [ ] **1.1 Backend skeleton.** `backend/` managed with uv (`pyproject.toml`, `.python-version`, `uv.lock`); FastAPI app with `GET /api/health`. Check: `uv run uvicorn app.main:app` answers `{"status": "ok"}`.
+- [x] **1.1 Backend skeleton.** `backend/` managed with uv (`pyproject.toml`, `.python-version`, `uv.lock`); FastAPI app with `GET /api/health`. Check: `uv run uvicorn app.main:app` answers `{"status": "ok"}`.
 - [ ] **1.2 Settings.** pydantic-settings class (database URL, test database URL, `SEED_DATA`, broadcaster type) and `.env.example`. Check: every setting is listed in `.env.example` with a working default.
 - [ ] **1.3 Backend tooling.** Ruff (including the docstring rules `D` with the Google convention) and pyright configured in `pyproject.toml`; pytest, pytest-asyncio and httpx as dev dependencies; one test for `/api/health`. Check: `uv run ruff check`, `uv run ruff format --check`, `uv run pyright` and `uv run pytest` pass.
 - [ ] **1.4 Frontend skeleton.** Vue 3 + TypeScript + Vite in `frontend/`, Nuxt UI through its Vite plugin, Vite proxy for `/api` to `localhost:8000`. Check: `npm run dev` shows a page that displays the health response.
