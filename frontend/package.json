@@ -9,7 +9,8 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "vue-tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepare": "cd .. && husky frontend/.husky"
   },
   "dependencies": {
     "@nuxt/ui": "^4.11.3",
@@ -25,7 +26,9 @@
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.11.1",
+    "husky": "^9.1.7",
     "jsdom": "^29.1.1",
+    "lint-staged": "^17.6.0",
     "prettier": "^3.9.10",
     "typescript": "~5.9",
     "typescript-eslint": "^8.71.2",
