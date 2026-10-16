@@ -52,7 +52,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 - [x] **7.3 Workshop list.** Title, start time and remaining seats, a full state, loading and error states. Check: the seeded workshops show in the dev server.
 - [x] **7.4 Reserve form.** `UForm` with a Zod schema for name and email; the button is disabled while submitting; clear messages for new, already reserved and full. Check: Vitest covers validation, and all three outcomes show in the browser.
 - [x] **7.5 Cancel form.** Asks for the email used to reserve; disabled while the request runs; shows the server's message. Check: cancelling from a different browser raises the remaining count.
-- [ ] **7.6 Live updates.** `EventSource` on `/api/events`; load the list in `onopen`; patch `remaining` on each event. Check: Vitest with a mocked `EventSource` updates the right workshop, and two browser windows stay in sync.
+- [x] **7.6 Live updates.** `EventSource` on `/api/events`; load the list on connect and again in `onopen`; patch `remaining` on each event, never from a reserve response; reopen the stream when the browser gives up. Check: Vitest with a mocked `EventSource` updates the right workshop, and two browser windows stay in sync.
 
 ## 8. Containers
 

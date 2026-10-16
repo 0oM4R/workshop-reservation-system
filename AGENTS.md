@@ -113,7 +113,8 @@ Reserving is one transaction, in this order:
 ## Frontend
 
 - One page. Server state lives in the `useWorkshops()` composable built on Vue refs; no Pinia, Vue Router or query library.
-- The composable loads the list in `EventSource`'s `onopen`, which covers the first load and every reconnect, and patches `remaining` on each event.
+- The composable loads the list on connect, so it shows even when the stream is down, and again in `EventSource`'s `onopen`, which resyncs after every reconnect. It patches `remaining` on each event, and reopens the stream itself when the browser gives up after an HTTP error.
+- `remaining` changes only from a list load or a stream event, never from a reserve response: the stream delivers changes in commit order, and a response can arrive after a newer event. While the stream is down, a successful reserve or cancel reloads the list instead.
 - Disable Reserve and Cancel while a request is in flight.
 - Forms use Nuxt UI's `UForm` with a Zod schema. API response types are hand-written in one file.
 

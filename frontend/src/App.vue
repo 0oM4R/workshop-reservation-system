@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import WorkshopList from './components/WorkshopList.vue'
 import { useWorkshops } from './composables/useWorkshops'
 
-const { workshops, loading, error, submitting, bookedEmails, load, reserve, cancel } =
+const { workshops, loading, error, submitting, streamDown, bookedEmails, reserve, cancel } =
   useWorkshops()
-
-onMounted(load)
 </script>
 
 <template>
@@ -24,8 +21,9 @@ onMounted(load)
         :workshops="workshops"
         :loading="loading"
         :error="error"
-        :busy="submitting"
+        :stale="streamDown"
         :booked-emails="bookedEmails"
+        :busy="submitting"
         :reserve="reserve"
         :cancel="cancel"
       />

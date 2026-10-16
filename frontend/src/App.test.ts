@@ -7,6 +7,19 @@ import App from './App.vue'
 
 vi.mock('./api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 
+class FakeEventSource {
+  static readonly CLOSED = 2
+  static last: FakeEventSource
+  readyState = 0
+  onopen: (() => void) | null = null
+  onmessage: ((message: { data: string }) => void) | null = null
+  onerror: (() => void) | null = null
+  constructor() {
+    FakeEventSource.last = this
+  }
+  close() {}
+}
+
 const workshop = (id: number, title: string, remaining: number) => ({
   id,
   title,
@@ -17,6 +30,7 @@ const workshop = (id: number, title: string, remaining: number) => ({
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.stubGlobal('EventSource', FakeEventSource)
 })
 
 function buttonNamed(wrapper: VueWrapper, name: string) {
@@ -48,6 +62,7 @@ describe('App', () => {
     })
     const wrapper = mount(App, { global: { plugins: [ui] } })
 
+    FakeEventSource.last.onopen?.()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Pottery')
@@ -55,10 +70,23 @@ describe('App', () => {
     expect(wrapper.text()).toContain('Full')
   })
 
+  it('updates the seats shown when an event arrives', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [workshop(1, 'Pottery', 3)] })
+    const wrapper = mount(App, { global: { plugins: [ui] } })
+    FakeEventSource.last.onopen?.()
+    await flushPromises()
+
+    FakeEventSource.last.onmessage?.({ data: JSON.stringify({ workshop_id: 1, remaining: 2 }) })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('2 of 5 seats left')
+  })
+
   it('shows the error when the list cannot be loaded', async () => {
     vi.mocked(api.get).mockRejectedValue(new Error('Network Error'))
     const wrapper = mount(App, { global: { plugins: [ui] } })
 
+    FakeEventSource.last.onopen?.()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Could not load workshops: Network Error')
@@ -69,7 +97,7 @@ describe('App', () => {
       data: [{ ...workshop(3, 'Choir', 637), capacity: 1000 }],
     })
     const wrapper = mount(App, { global: { plugins: [ui] } })
-
+    FakeEventSource.last.onopen?.()
     await flushPromises()
 
     expect(wrapper.find('[role="progressbar"]').exists()).toBe(true)
@@ -80,6 +108,7 @@ describe('App', () => {
   it('disables Reserve on a full workshop', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: [workshop(2, 'Knife Skills', 0)] })
     const wrapper = mount(App, { global: { plugins: [ui] } })
+    FakeEventSource.last.onopen?.()
     await flushPromises()
 
     expect(buttonNamed(wrapper, 'Reserve a seat')?.attributes('disabled')).toBeDefined()
@@ -92,6 +121,7 @@ describe('App', () => {
       data: { id: 9, workshop_id: 1, name: 'Ada', remaining: 2 },
     })
     const wrapper = mount(App, { global: { plugins: [ui] }, attachTo: document.body })
+    FakeEventSource.last.onopen?.()
     await flushPromises()
 
     await reserveThroughDialog(wrapper)
@@ -104,6 +134,7 @@ describe('App', () => {
     expect(wrapper.text()).toContain("You're booked")
     expect(buttonNamed(wrapper, 'Reserve a seat')).toBeUndefined()
     expect(wrapper.text()).toContain('3 of 5 seats left')
+    expect(document.activeElement?.textContent?.trim()).toBe('Cancel reservation')
     wrapper.unmount()
   })
 
@@ -113,6 +144,7 @@ describe('App', () => {
       new AxiosError('full', '409', undefined, undefined, { status: 409 } as AxiosResponse),
     )
     const wrapper = mount(App, { global: { plugins: [ui] }, attachTo: document.body })
+    FakeEventSource.last.onopen?.()
     await flushPromises()
 
     await reserveThroughDialog(wrapper)
@@ -133,6 +165,7 @@ describe('App', () => {
         data: { message: 'If this email held a seat, it has been cancelled.' },
       })
     const wrapper = mount(App, { global: { plugins: [ui] }, attachTo: document.body })
+    FakeEventSource.last.onopen?.()
     await flushPromises()
     await reserveThroughDialog(wrapper)
     await waitForDialogToClose()
@@ -150,5 +183,21 @@ describe('App', () => {
     expect(wrapper.text()).not.toContain("You're booked")
     expect(buttonNamed(wrapper, 'Reserve a seat')).toBeDefined()
     wrapper.unmount()
+  })
+
+  it('warns that counts may be stale while the stream is down, keeping the list', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [workshop(1, 'Pottery', 3)] })
+    const wrapper = mount(App, { global: { plugins: [ui] } })
+    await flushPromises()
+
+    FakeEventSource.last.onerror?.()
+    await flushPromises()
+    const status = wrapper.find('[role="status"]')
+
+    expect(status.text()).toContain('Seat counts may be out of date')
+    expect(wrapper.text()).toContain('Pottery')
+    FakeEventSource.last.onopen?.()
+    await flushPromises()
+    expect(status.text()).toBe('')
   })
 })

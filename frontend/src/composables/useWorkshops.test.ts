@@ -1,15 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AxiosError, type AxiosResponse } from 'axios'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent } from 'vue'
 import { api } from '../api/client'
 import type { Workshop } from '../api/types'
 import { useWorkshops } from './useWorkshops'
 
 vi.mock('../api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 
-// Fresh objects per test: the composable keeps what the mocked API returned.
+class FakeEventSource {
+  static readonly CLOSED = 2
+  static instances: FakeEventSource[] = []
+  readyState = 0
+  onopen: (() => void) | null = null
+  onmessage: ((message: { data: string }) => void) | null = null
+  onerror: (() => void) | null = null
+  closed = false
+  constructor(public url: string) {
+    FakeEventSource.instances.push(this)
+  }
+  close() {
+    this.closed = true
+  }
+}
+
+// Fresh objects per test: the composable mutates what the mocked API returned.
 let pottery: Workshop
 let baking: Workshop
 const values = { name: 'Ada', email: 'ada@example.com' }
+
+/** Run the composable inside a mounted component, so its mount and unmount hooks fire. */
+function mountWorkshops() {
+  let workshops!: ReturnType<typeof useWorkshops>
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        workshops = useWorkshops()
+        return () => null
+      },
+    }),
+  )
+  return { ...workshops, unmount: () => wrapper.unmount() }
+}
 
 function failureWithStatus(status: number): AxiosError {
   return new AxiosError('failed', String(status), undefined, undefined, {
@@ -27,6 +59,8 @@ beforeEach(() => {
   }
   baking = { ...pottery, id: 2, title: 'Baking', remaining: 3 }
   vi.resetAllMocks()
+  FakeEventSource.instances = []
+  vi.stubGlobal('EventSource', FakeEventSource)
 })
 
 describe('load', () => {
@@ -160,5 +194,164 @@ describe('cancel', () => {
     const { cancel } = useWorkshops()
 
     expect((await cancel(1, 'ada@example.com')).kind).toBe('error')
+  })
+})
+
+describe('live updates', () => {
+  it('loads the list on mount, before the stream opens', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery] })
+
+    const { workshops } = mountWorkshops()
+    await flushPromises()
+
+    expect(FakeEventSource.instances[0]?.url).toBe('/api/events')
+    expect(workshops.value).toEqual([pottery])
+  })
+
+  it('reloads the list each time the stream opens, including reconnects', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery] })
+
+    mountWorkshops()
+    const [stream] = FakeEventSource.instances
+    stream?.onopen?.()
+    stream?.onopen?.()
+    await flushPromises()
+
+    expect(api.get).toHaveBeenCalledTimes(3)
+  })
+
+  it('keeps the latest list when an older load answers last', async () => {
+    let answerFirstLoad: (value: { data: Workshop[] }) => void = () => {}
+    vi.mocked(api.get)
+      .mockReturnValueOnce(new Promise((resolve) => (answerFirstLoad = resolve)))
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ data: [{ ...pottery, remaining: 4 }] })
+
+    const { workshops, error } = mountWorkshops()
+    const stream = FakeEventSource.instances[0]
+    stream?.onopen?.()
+    stream?.onopen?.()
+    await flushPromises()
+    answerFirstLoad({ data: [pottery] })
+    await flushPromises()
+
+    expect(workshops.value.map((workshop) => workshop.remaining)).toEqual([4])
+    expect(error.value).toBeNull()
+  })
+
+  it('reopens the stream after the browser gives up on it, then resyncs', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery] })
+    const { streamDown } = mountWorkshops()
+    const stream = FakeEventSource.instances[0]
+
+    if (stream) stream.readyState = FakeEventSource.CLOSED
+    stream?.onerror?.()
+    vi.advanceTimersByTime(5000)
+    vi.useRealTimers()
+    expect(streamDown.value).toBe(true)
+    FakeEventSource.instances[1]?.onopen?.()
+    await flushPromises()
+
+    expect(FakeEventSource.instances).toHaveLength(2)
+    expect(api.get).toHaveBeenCalledTimes(2)
+    expect(streamDown.value).toBe(false)
+  })
+
+  it('leaves reconnecting to the browser while it is still retrying', () => {
+    vi.useFakeTimers()
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery] })
+    mountWorkshops()
+
+    FakeEventSource.instances[0]?.onerror?.()
+    vi.advanceTimersByTime(5000)
+    vi.useRealTimers()
+
+    expect(FakeEventSource.instances).toHaveLength(1)
+  })
+
+  it('patches only the workshop named in an event', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery, baking] })
+    const { workshops } = mountWorkshops()
+    await flushPromises()
+
+    FakeEventSource.instances[0]?.onmessage?.({
+      data: JSON.stringify({ workshop_id: 2, remaining: 1 }),
+    })
+
+    expect(workshops.value.map((workshop) => workshop.remaining)).toEqual([8, 1])
+  })
+
+  it('flags the stream as down without hiding the list, then clears it on reopen', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery] })
+    const { workshops, error, streamDown } = mountWorkshops()
+    await flushPromises()
+    const stream = FakeEventSource.instances[0]
+
+    stream?.onerror?.()
+    expect(streamDown.value).toBe(true)
+    expect(error.value).toBeNull()
+    expect(workshops.value).toEqual([pottery])
+    stream?.onopen?.()
+
+    expect(streamDown.value).toBe(false)
+  })
+
+  it('reloads the counts after a reserve or cancel while the stream is down', async () => {
+    vi.mocked(api.get)
+      .mockResolvedValueOnce({ data: [pottery] })
+      .mockResolvedValueOnce({ data: [{ ...pottery, remaining: 7 }] })
+      .mockResolvedValueOnce({ data: [{ ...pottery, remaining: 8 }] })
+    vi.mocked(api.post)
+      .mockResolvedValueOnce({ status: 201, data: { remaining: 7 } })
+      .mockResolvedValueOnce({ data: { message: 'Done.' } })
+    const { workshops, reserve, cancel } = mountWorkshops()
+    await flushPromises()
+    FakeEventSource.instances[0]?.onerror?.()
+
+    await reserve(1, values)
+    await flushPromises()
+    expect(workshops.value[0]?.remaining).toBe(7)
+    await cancel(1, 'ada@example.com')
+    await flushPromises()
+
+    expect(workshops.value[0]?.remaining).toBe(8)
+  })
+
+  it('leaves the counts to the stream after a reserve while it is up', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery] })
+    vi.mocked(api.post).mockResolvedValue({ status: 201, data: { remaining: 7 } })
+    const { reserve } = mountWorkshops()
+    FakeEventSource.instances[0]?.onopen?.()
+    await flushPromises()
+
+    await reserve(1, values)
+    await flushPromises()
+
+    expect(api.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('closes the stream on unmount', () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery] })
+    const { unmount } = mountWorkshops()
+
+    unmount()
+
+    expect(FakeEventSource.instances[0]?.closed).toBe(true)
+  })
+
+  it('cancels a pending reopen on unmount', () => {
+    vi.useFakeTimers()
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery] })
+    const { unmount } = mountWorkshops()
+    const stream = FakeEventSource.instances[0]
+    if (stream) stream.readyState = FakeEventSource.CLOSED
+    stream?.onerror?.()
+
+    unmount()
+    vi.advanceTimersByTime(5000)
+    vi.useRealTimers()
+
+    expect(FakeEventSource.instances).toHaveLength(1)
   })
 })

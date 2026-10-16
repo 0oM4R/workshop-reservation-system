@@ -10,6 +10,7 @@ defineProps<{
   workshops: Workshop[]
   loading: boolean
   error: string | null
+  stale: boolean
   busy: boolean
   bookedEmails: Record<number, string>
   reserve: (workshopId: number, values: ReserveValues) => Promise<ReserveOutcome>
@@ -20,6 +21,15 @@ defineProps<{
 <template>
   <section class="space-y-6">
     <UAlert v-if="error" color="error" variant="subtle" :description="error" />
+    <div role="status" :class="stale ? 'sticky top-3 z-10' : 'sr-only'">
+      <p
+        v-if="stale"
+        class="inline-flex items-center gap-2 rounded-full bg-default px-4 py-2 text-sm font-medium text-highlighted shadow-sm ring-1 ring-warning/50"
+      >
+        <span class="size-2 rounded-full bg-warning motion-safe:animate-pulse" aria-hidden="true" />
+        Connection lost. Seat counts may be out of date until it reconnects.
+      </p>
+    </div>
     <p v-if="!loading && !error && workshops.length === 0" class="text-lg text-toned">
       No workshops are scheduled yet. Check back soon.
     </p>
