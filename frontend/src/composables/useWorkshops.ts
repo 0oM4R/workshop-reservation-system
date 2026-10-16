@@ -1,4 +1,4 @@
-import axios, { HttpStatusCode } from 'axios'
+import axios, { AxiosError, HttpStatusCode } from 'axios'
 import { onMounted, onScopeDispose, ref } from 'vue'
 import { api } from '../api/client'
 import type { CancelResult, Reservation, SeatsChanged, Workshop } from '../api/types'
@@ -19,7 +19,18 @@ export interface CancelOutcome {
   message: string
 }
 
+/** FastAPI's error body: a message, or one entry per invalid field for a 422. */
+interface ErrorBody {
+  detail?: string | { msg: string }[]
+}
+
 function describeFailure(error: unknown): string {
+  if (axios.isAxiosError<ErrorBody>(error)) {
+    if (error.code === AxiosError.ECONNABORTED) return 'the server took too long to answer'
+    const detail = error.response?.data?.detail
+    if (typeof detail === 'string') return detail
+    if (Array.isArray(detail)) return detail.map((issue) => issue.msg).join('; ')
+  }
   return error instanceof Error ? error.message : String(error)
 }
 
@@ -32,23 +43,38 @@ export function useWorkshops() {
   const submitting = ref(false)
   const bookedEmails = ref<Record<number, string>>({})
   const streamDown = ref(false)
-  let latestLoad = 0
+  let startedLoads = 0
+  let appliedLoad = 0
+  // Numbered so a list load can tell which events arrived while it was in flight.
+  let eventCount = 0
+  const lastEvents = new Map<number, { at: number; remaining: number }>()
   let events: EventSource | null = null
   let retryTimer: ReturnType<typeof setTimeout> | undefined
 
+  // Loads overlap (on mount, on every stream open, after our own change while the stream is
+  // down). A list is applied unless a newer one already was, so a failed newer load can't
+  // discard it. Events that arrived while it was in flight are applied again on top: one
+  // received before the request went out is already in the list, but a later one may be newer.
   async function load(): Promise<void> {
-    // Loads overlap (connect, then the stream opening); an older snapshot must not undo a newer one.
-    const thisLoad = ++latestLoad
+    const thisLoad = ++startedLoads
+    const eventsBefore = eventCount
     loading.value = true
     error.value = null
     try {
       const response = await api.get<Workshop[]>('/workshops')
-      if (thisLoad === latestLoad) workshops.value = response.data
+      if (thisLoad < appliedLoad) return
+      appliedLoad = thisLoad
+      workshops.value = response.data
+      error.value = null
+      for (const [workshopId, event] of lastEvents) {
+        if (event.at > eventsBefore) setRemaining(workshopId, event.remaining)
+      }
     } catch (failure) {
-      if (thisLoad === latestLoad)
+      if (thisLoad > appliedLoad) {
         error.value = `Could not load workshops: ${describeFailure(failure)}`
+      }
     } finally {
-      if (thisLoad === latestLoad) loading.value = false
+      if (thisLoad === startedLoads) loading.value = false
     }
   }
 
@@ -69,8 +95,9 @@ export function useWorkshops() {
       const response = await api.post<Reservation>(`/workshops/${workshopId}/reservations`, values)
       bookedEmails.value[workshopId] = values.email
       // Ignore response.data.remaining: it can arrive after a newer stream event.
+      // A 200 can be the retry of a 201 whose answer was lost, so both outcomes resync.
+      resyncIfStreamDown()
       if (response.status === HttpStatusCode.Created) {
-        resyncIfStreamDown()
         return { kind: 'reserved', message: 'Your seat is reserved.' }
       }
       return { kind: 'already', message: 'You already hold a seat in this workshop.' }
@@ -105,6 +132,7 @@ export function useWorkshops() {
 
   function handleMessage(message: MessageEvent<string>): void {
     const change: SeatsChanged = JSON.parse(message.data)
+    lastEvents.set(change.workshop_id, { at: ++eventCount, remaining: change.remaining })
     setRemaining(change.workshop_id, change.remaining)
   }
 

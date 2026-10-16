@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useToast } from '@nuxt/ui/composables'
-import { computed, ref, useId, useTemplateRef } from 'vue'
+import { computed, ref, useId } from 'vue'
 import type { Workshop } from '../api/types'
 import type { CancelOutcome, ReserveOutcome } from '../composables/useWorkshops'
 import type { ReserveValues } from '../schemas'
@@ -37,7 +37,6 @@ const titleId = useId()
 const toast = useToast()
 const reserveOpen = ref(false)
 const cancelOpen = ref(false)
-const cancelButton = useTemplateRef<{ $el: HTMLElement }>('cancelButton')
 
 const startsAt = computed(() => new Date(props.workshop.starts_at))
 const isFull = computed(() => props.workshop.remaining === 0)
@@ -56,15 +55,6 @@ function onReserved(outcome: ReserveOutcome) {
     description: dialogDescription.value,
     color: outcome.kind === 'reserved' ? 'success' : 'info',
   })
-}
-
-// Booking removes the Reserve button the dialog would hand focus back to, so land on Cancel.
-const reserveDialogContent = {
-  onCloseAutoFocus(event: Event) {
-    if (!props.bookedEmail) return
-    event.preventDefault()
-    cancelButton.value?.$el.focus()
-  },
 }
 
 function onCancelled(outcome: CancelOutcome) {
@@ -127,16 +117,10 @@ function onCancelled(outcome: CancelOutcome) {
       <UBadge v-if="bookedEmail" color="primary" variant="soft" size="xl" class="rounded-full px-4">
         You're booked
       </UBadge>
-      <UButton
-        v-else
-        :aria-describedby="titleId"
-        :disabled="busy || isFull"
-        @click="reserveOpen = true"
-      >
+      <UButton :aria-describedby="titleId" :disabled="busy || isFull" @click="reserveOpen = true">
         Reserve a seat
       </UButton>
       <UButton
-        ref="cancelButton"
         color="neutral"
         variant="ghost"
         :aria-describedby="titleId"
@@ -150,7 +134,6 @@ function onCancelled(outcome: CancelOutcome) {
     <UModal
       v-model:open="reserveOpen"
       title="Reserve a seat"
-      :content="reserveDialogContent"
       :dismissible="!busy"
       :close="!busy"
       :ui="dialogUi"

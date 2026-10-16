@@ -4,25 +4,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { api } from '../api/client'
 import type { Workshop } from '../api/types'
+import { FakeEventSource, installFakeEventSource } from '../test/FakeEventSource'
 import { useWorkshops } from './useWorkshops'
 
 vi.mock('../api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
-
-class FakeEventSource {
-  static readonly CLOSED = 2
-  static instances: FakeEventSource[] = []
-  readyState = 0
-  onopen: (() => void) | null = null
-  onmessage: ((message: { data: string }) => void) | null = null
-  onerror: (() => void) | null = null
-  closed = false
-  constructor(public url: string) {
-    FakeEventSource.instances.push(this)
-  }
-  close() {
-    this.closed = true
-  }
-}
 
 // Fresh objects per test: the composable mutates what the mocked API returned.
 let pottery: Workshop
@@ -59,8 +44,7 @@ beforeEach(() => {
   }
   baking = { ...pottery, id: 2, title: 'Baking', remaining: 3 }
   vi.resetAllMocks()
-  FakeEventSource.instances = []
-  vi.stubGlobal('EventSource', FakeEventSource)
+  installFakeEventSource()
 })
 
 describe('load', () => {
@@ -116,6 +100,31 @@ describe('reserve', () => {
     const { reserve } = useWorkshops()
 
     expect((await reserve(1, values)).kind).toBe('full')
+  })
+
+  it('shows the server validation message for a 422', async () => {
+    vi.mocked(api.post).mockRejectedValue(
+      new AxiosError('failed', '422', undefined, undefined, {
+        status: 422,
+        data: { detail: [{ msg: 'value is not a valid email address' }] },
+      } as AxiosResponse),
+    )
+    const { reserve } = useWorkshops()
+
+    expect((await reserve(1, values)).message).toBe(
+      'Could not reserve: value is not a valid email address',
+    )
+  })
+
+  it('explains a request that timed out', async () => {
+    vi.mocked(api.post).mockRejectedValue(
+      new AxiosError('timeout of 10000ms exceeded', AxiosError.ECONNABORTED),
+    )
+    const { reserve } = useWorkshops()
+
+    expect((await reserve(1, values)).message).toBe(
+      'Could not reserve: the server took too long to answer',
+    )
   })
 
   it('reports any other failure as an error', async () => {
@@ -189,11 +198,19 @@ describe('cancel', () => {
     expect(outcome).toEqual({ kind: 'cancelled', message: 'Done.' })
   })
 
-  it('reports a failure', async () => {
-    vi.mocked(api.post).mockRejectedValue(failureWithStatus(404))
+  it("reports a failure with the server's message", async () => {
+    vi.mocked(api.post).mockRejectedValue(
+      new AxiosError('failed', '404', undefined, undefined, {
+        status: 404,
+        data: { detail: 'Workshop not found' },
+      } as AxiosResponse),
+    )
     const { cancel } = useWorkshops()
 
-    expect((await cancel(1, 'ada@example.com')).kind).toBe('error')
+    expect(await cancel(1, 'ada@example.com')).toEqual({
+      kind: 'error',
+      message: 'Could not cancel: Workshop not found',
+    })
   })
 })
 
@@ -237,6 +254,55 @@ describe('live updates', () => {
 
     expect(workshops.value.map((workshop) => workshop.remaining)).toEqual([4])
     expect(error.value).toBeNull()
+  })
+
+  it('shows an older list that succeeds after a newer load failed', async () => {
+    let answerFirstLoad: (value: { data: Workshop[] }) => void = () => {}
+    vi.mocked(api.get)
+      .mockReturnValueOnce(new Promise((resolve) => (answerFirstLoad = resolve)))
+      .mockRejectedValueOnce(new Error('Request failed with status code 502'))
+    const { workshops, error } = mountWorkshops()
+    FakeEventSource.instances[0]?.onopen?.()
+    await flushPromises()
+
+    answerFirstLoad({ data: [pottery] })
+    await flushPromises()
+
+    expect(workshops.value).toEqual([pottery])
+    expect(error.value).toBeNull()
+  })
+
+  it('keeps an event that arrives while a list load is in flight', async () => {
+    let answerReload: (value: { data: Workshop[] }) => void = () => {}
+    vi.mocked(api.get)
+      .mockResolvedValueOnce({ data: [pottery] })
+      .mockReturnValueOnce(new Promise((resolve) => (answerReload = resolve)))
+    const { workshops } = mountWorkshops()
+    await flushPromises()
+    const stream = FakeEventSource.instances[0]
+
+    // The reload's list is read before the reservation behind the event commits.
+    stream?.onopen?.()
+    stream?.onmessage?.({ data: JSON.stringify({ workshop_id: 1, remaining: 7 }) })
+    answerReload({ data: [{ ...pottery, remaining: 8 }] })
+    await flushPromises()
+
+    expect(workshops.value[0]?.remaining).toBe(7)
+  })
+
+  it('lets a list load replace events received before it started', async () => {
+    vi.mocked(api.get)
+      .mockResolvedValueOnce({ data: [pottery] })
+      .mockResolvedValueOnce({ data: [{ ...pottery, remaining: 5 }] })
+    const { workshops } = mountWorkshops()
+    await flushPromises()
+    const stream = FakeEventSource.instances[0]
+    stream?.onmessage?.({ data: JSON.stringify({ workshop_id: 1, remaining: 7 }) })
+
+    stream?.onopen?.()
+    await flushPromises()
+
+    expect(workshops.value[0]?.remaining).toBe(5)
   })
 
   it('reopens the stream after the browser gives up on it, then resyncs', async () => {
@@ -316,6 +382,19 @@ describe('live updates', () => {
     await flushPromises()
 
     expect(workshops.value[0]?.remaining).toBe(8)
+  })
+
+  it('reloads after an already-held seat too, in case the first answer was lost', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [pottery] })
+    vi.mocked(api.post).mockResolvedValue({ status: 200, data: { remaining: 7 } })
+    const { reserve } = mountWorkshops()
+    await flushPromises()
+    FakeEventSource.instances[0]?.onerror?.()
+
+    await reserve(1, values)
+    await flushPromises()
+
+    expect(api.get).toHaveBeenCalledTimes(2)
   })
 
   it('leaves the counts to the stream after a reserve while it is up', async () => {

@@ -4,21 +4,9 @@ import { DOMWrapper, flushPromises, mount, type VueWrapper } from '@vue/test-uti
 import ui from '@nuxt/ui/vue-plugin'
 import { api } from './api/client'
 import App from './App.vue'
+import { FakeEventSource, installFakeEventSource } from './test/FakeEventSource'
 
 vi.mock('./api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
-
-class FakeEventSource {
-  static readonly CLOSED = 2
-  static last: FakeEventSource
-  readyState = 0
-  onopen: (() => void) | null = null
-  onmessage: ((message: { data: string }) => void) | null = null
-  onerror: (() => void) | null = null
-  constructor() {
-    FakeEventSource.last = this
-  }
-  close() {}
-}
 
 const workshop = (id: number, title: string, remaining: number) => ({
   id,
@@ -30,7 +18,7 @@ const workshop = (id: number, title: string, remaining: number) => ({
 
 beforeEach(() => {
   vi.resetAllMocks()
-  vi.stubGlobal('EventSource', FakeEventSource)
+  installFakeEventSource()
 })
 
 function buttonNamed(wrapper: VueWrapper, name: string) {
@@ -114,7 +102,7 @@ describe('App', () => {
     expect(buttonNamed(wrapper, 'Reserve a seat')?.attributes('disabled')).toBeDefined()
   })
 
-  it('closes the dialog and swaps Reserve for a booked badge after reserving', async () => {
+  it('closes the dialog and shows a booked badge after reserving', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: [workshop(1, 'Pottery', 3)] })
     vi.mocked(api.post).mockResolvedValue({
       status: 201,
@@ -132,9 +120,9 @@ describe('App', () => {
       email: 'ada@example.com',
     })
     expect(wrapper.text()).toContain("You're booked")
-    expect(buttonNamed(wrapper, 'Reserve a seat')).toBeUndefined()
+    // A cancel from another tab can't clear the badge, so Reserve must stay usable.
+    expect(buttonNamed(wrapper, 'Reserve a seat')?.attributes('disabled')).toBeUndefined()
     expect(wrapper.text()).toContain('3 of 5 seats left')
-    expect(document.activeElement?.textContent?.trim()).toBe('Cancel reservation')
     wrapper.unmount()
   })
 
