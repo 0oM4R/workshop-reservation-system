@@ -394,25 +394,88 @@ describe('live updates', () => {
     expect(streamDown.value).toBe(false)
   })
 
-  it('reloads the counts after a reserve or cancel while the stream is down', async () => {
+  it.each([201, 200])(
+    'reloads counts after reserve %s or cancel while disconnected',
+    async (status) => {
+      vi.mocked(api.get)
+        .mockResolvedValueOnce({ data: [pottery] })
+        .mockResolvedValueOnce({ data: [{ ...pottery, remaining: 7 }] })
+        .mockResolvedValueOnce({ data: [{ ...pottery, remaining: 8 }] })
+      vi.mocked(api.post)
+        .mockResolvedValueOnce({ status, data: { remaining: 7 } })
+        .mockResolvedValueOnce({ data: { message: 'Done.' } })
+      const { workshops, reserve, cancel } = mountWorkshops()
+      await flushPromises()
+      FakeEventSource.instances[0]?.onerror?.()
+
+      await reserve(1, values)
+      await flushPromises()
+      expect(workshops.value[0]?.remaining).toBe(7)
+      await cancel(1, 'ada@example.com')
+      await flushPromises()
+
+      expect(workshops.value[0]?.remaining).toBe(8)
+    },
+  )
+
+  it('keeps events received during the initial list load, including zero seats', async () => {
+    let finish: (value: { data: Workshop[] }) => void = () => {}
+    vi.mocked(api.get).mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
+    const { workshops, loading } = mountWorkshops()
+    const stream = FakeEventSource.instances[0]
+
+    stream?.onmessage?.({ data: JSON.stringify({ workshop_id: 1, remaining: 2 }) })
+    stream?.onmessage?.({ data: JSON.stringify({ workshop_id: 1, remaining: 0 }) })
+    finish({ data: [pottery, baking] })
+    await flushPromises()
+
+    expect(workshops.value.map((workshop) => workshop.remaining)).toEqual([0, 3])
+    expect(loading.value).toBe(false)
+  })
+
+  it('preserves live counts over a delayed reload, but lets later loads resync', async () => {
+    let finish: (value: { data: Workshop[] }) => void = () => {}
     vi.mocked(api.get)
-      .mockResolvedValueOnce({ data: [pottery] })
-      .mockResolvedValueOnce({ data: [{ ...pottery, remaining: 7 }] })
-      .mockResolvedValueOnce({ data: [{ ...pottery, remaining: 8 }] })
-    vi.mocked(api.post)
-      .mockResolvedValueOnce({ status: 201, data: { remaining: 7 } })
-      .mockResolvedValueOnce({ data: { message: 'Done.' } })
-    const { workshops, reserve, cancel } = mountWorkshops()
+      .mockResolvedValueOnce({ data: [{ ...pottery }] })
+      .mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
+      .mockResolvedValueOnce({ data: [{ ...pottery, remaining: 6 }, baking] })
+    const { workshops, load } = mountWorkshops()
     await flushPromises()
-    FakeEventSource.instances[0]?.onerror?.()
+    const pending = load()
+    FakeEventSource.instances[0]?.onmessage?.({
+      data: JSON.stringify({ workshop_id: 1, remaining: 4 }),
+    })
+    expect(workshops.value[0]?.remaining).toBe(4)
 
-    await reserve(1, values)
-    await flushPromises()
-    expect(workshops.value[0]?.remaining).toBe(7)
-    await cancel(1, 'ada@example.com')
-    await flushPromises()
+    finish({ data: [pottery, baking] })
+    await pending
+    expect(workshops.value.map((workshop) => workshop.remaining)).toEqual([4, 3])
 
-    expect(workshops.value[0]?.remaining).toBe(8)
+    await load()
+    expect(workshops.value.map((workshop) => workshop.remaining)).toEqual([6, 3])
+  })
+
+  it('preserves events across overlapping successful loads', async () => {
+    let finishOlder: (value: { data: Workshop[] }) => void = () => {}
+    let finishNewer: (value: { data: Workshop[] }) => void = () => {}
+    vi.mocked(api.get)
+      .mockReturnValueOnce(new Promise((resolve) => (finishOlder = resolve)))
+      .mockReturnValueOnce(new Promise((resolve) => (finishNewer = resolve)))
+    const { workshops, loading, load } = mountWorkshops()
+    const newer = load()
+    FakeEventSource.instances[0]?.onmessage?.({
+      data: JSON.stringify({ workshop_id: 1, remaining: 3 }),
+    })
+
+    finishOlder({ data: [pottery] })
+    await flushPromises()
+    expect(loading.value).toBe(true)
+    expect(workshops.value[0]?.remaining).toBe(3)
+
+    finishNewer({ data: [{ ...pottery, remaining: 5 }] })
+    await newer
+    expect(workshops.value[0]?.remaining).toBe(3)
+    expect(loading.value).toBe(false)
   })
 
   it('reloads after an already-held seat too, in case the first answer was lost', async () => {
