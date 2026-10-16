@@ -56,11 +56,11 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 8. Containers
 
-- [ ] **8.1 API image.** Dockerfile copying uv from its official image and running `uv sync --locked`. Check: `docker compose build api` succeeds.
-- [ ] **8.2 `migrate` service.** Same image; runs `alembic upgrade head`, then the seed; `api` waits for it with `service_completed_successfully`. Check: `docker compose up` shows migrate exiting 0 before `api` starts.
-- [ ] **8.3 Web image.** Node build stage, then nginx: `try_files $uri /index.html`, `/api/` proxied to `api:8000`, `proxy_buffering off` and a long read timeout on `/api/events`. Check: the page and `/api/workshops` both load through nginx.
-- [ ] **8.4 Full stack.** Only `web` publishes a port; nothing needs configuring. Check: a fresh clone starts with `docker compose up` and lists the seeded workshops.
-- [ ] **8.5 SSE smoke test.** pytest against the running stack through nginx: open the stream, reserve, and expect the event within a few seconds. Check: it passes against `docker compose up`.
+- [x] **8.1 API image.** Dockerfile copying uv from its official image and running `uv sync --locked`. Check: `docker compose build api` succeeds.
+- [x] **8.2 `migrate` service.** Same image; runs `alembic upgrade head`, then the seed; `api` waits for it with `service_completed_successfully`. Check: `docker compose up` shows migrate exiting 0 before `api` starts.
+- [x] **8.3 Web image.** Node build stage, then nginx: `try_files $uri /index.html`, `/api/` proxied to `api:8000`, `proxy_buffering off` and a long read timeout on `/api/events`. Check: the page and `/api/workshops` both load through nginx.
+- [x] **8.4 Full stack.** Only `web` publishes a port; nothing needs configuring. Check: a fresh clone starts with `docker compose up` and lists the seeded workshops.
+- [x] **8.5 SSE smoke test.** pytest against the running stack through nginx: open the stream, reserve, and expect the event within a few seconds. Check: it passes against `docker compose up`.
 
 ## 9. CI
 
