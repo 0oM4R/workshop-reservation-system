@@ -8,4 +8,9 @@ export const reserveSchema = z.object({
   email: z.string().trim().pipe(z.email('Enter a valid email address')),
 })
 
+export const cancelSchema = z.object({
+  email: z.string().trim().pipe(z.email('Enter a valid email address')),
+})
+
 export type ReserveValues = z.output<typeof reserveSchema>
+export type CancelValues = z.output<typeof cancelSchema>

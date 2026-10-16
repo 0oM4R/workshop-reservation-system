@@ -3,7 +3,8 @@ import { onMounted } from 'vue'
 import WorkshopList from './components/WorkshopList.vue'
 import { useWorkshops } from './composables/useWorkshops'
 
-const { workshops, loading, error, submitting, bookedEmails, load, reserve } = useWorkshops()
+const { workshops, loading, error, submitting, bookedEmails, load, reserve, cancel } =
+  useWorkshops()
 
 onMounted(load)
 </script>
@@ -26,6 +27,7 @@ onMounted(load)
         :busy="submitting"
         :booked-emails="bookedEmails"
         :reserve="reserve"
+        :cancel="cancel"
       />
     </UContainer>
   </UApp>

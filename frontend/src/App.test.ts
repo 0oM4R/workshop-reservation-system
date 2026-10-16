@@ -121,4 +121,34 @@ describe('App', () => {
     expect(wrapper.text()).not.toContain("You're booked")
     wrapper.unmount()
   })
+
+  it('offers the booked email when cancelling, then brings Reserve back', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [workshop(1, 'Pottery', 3)] })
+    vi.mocked(api.post)
+      .mockResolvedValueOnce({
+        status: 201,
+        data: { id: 9, workshop_id: 1, name: 'Ada', remaining: 2 },
+      })
+      .mockResolvedValueOnce({
+        data: { message: 'If this email held a seat, it has been cancelled.' },
+      })
+    const wrapper = mount(App, { global: { plugins: [ui] }, attachTo: document.body })
+    await flushPromises()
+    await reserveThroughDialog(wrapper)
+    await waitForDialogToClose()
+
+    await buttonNamed(wrapper, 'Cancel reservation')?.trigger('click')
+    await flushPromises()
+    const email = openDialog().find<HTMLInputElement>('input[type="email"]')
+    expect(email.element.value).toBe('ada@example.com')
+    await openDialog().find('form').trigger('submit')
+    await waitForDialogToClose()
+
+    expect(api.post).toHaveBeenLastCalledWith('/workshops/1/reservations/cancel', {
+      email: 'ada@example.com',
+    })
+    expect(wrapper.text()).not.toContain("You're booked")
+    expect(buttonNamed(wrapper, 'Reserve a seat')).toBeDefined()
+    wrapper.unmount()
+  })
 })

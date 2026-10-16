@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { useToast } from '@nuxt/ui/composables'
-import { computed, ref, useId } from 'vue'
+import { computed, ref, useId, useTemplateRef } from 'vue'
 import type { Workshop } from '../api/types'
-import type { ReserveOutcome } from '../composables/useWorkshops'
+import type { CancelOutcome, ReserveOutcome } from '../composables/useWorkshops'
 import type { ReserveValues } from '../schemas'
+import CancelForm from './CancelForm.vue'
 import ReserveForm from './ReserveForm.vue'
 
 const MAX_SEAT_DOTS = 20
@@ -14,7 +15,6 @@ const dayAndTimeFormat = new Intl.DateTimeFormat(undefined, {
   hour: 'numeric',
   minute: '2-digit',
 })
-
 const fullDateFormat = new Intl.DateTimeFormat(undefined, {
   weekday: 'long',
   month: 'long',
@@ -28,6 +28,7 @@ const props = defineProps<{
   busy: boolean
   bookedEmail?: string
   reserve: (workshopId: number, values: ReserveValues) => Promise<ReserveOutcome>
+  cancel: (workshopId: number, email: string) => Promise<CancelOutcome>
 }>()
 
 const dialogUi = { title: 'font-display text-lg font-medium' }
@@ -35,6 +36,8 @@ const dialogUi = { title: 'font-display text-lg font-medium' }
 const titleId = useId()
 const toast = useToast()
 const reserveOpen = ref(false)
+const cancelOpen = ref(false)
+const cancelButton = useTemplateRef<{ $el: HTMLElement }>('cancelButton')
 
 const startsAt = computed(() => new Date(props.workshop.starts_at))
 const isFull = computed(() => props.workshop.remaining === 0)
@@ -53,6 +56,20 @@ function onReserved(outcome: ReserveOutcome) {
     description: dialogDescription.value,
     color: outcome.kind === 'reserved' ? 'success' : 'info',
   })
+}
+
+// Booking removes the Reserve button the dialog would hand focus back to, so land on Cancel.
+const reserveDialogContent = {
+  onCloseAutoFocus(event: Event) {
+    if (!props.bookedEmail) return
+    event.preventDefault()
+    cancelButton.value?.$el.focus()
+  },
+}
+
+function onCancelled(outcome: CancelOutcome) {
+  cancelOpen.value = false
+  toast.add({ title: outcome.message, description: dialogDescription.value, color: 'neutral' })
 }
 </script>
 
@@ -105,6 +122,7 @@ function onReserved(outcome: ReserveOutcome) {
         {{ seatsLabel }}
       </p>
     </div>
+
     <div class="mt-5 flex flex-wrap items-center gap-2">
       <UBadge v-if="bookedEmail" color="primary" variant="soft" size="xl" class="rounded-full px-4">
         You're booked
@@ -117,11 +135,22 @@ function onReserved(outcome: ReserveOutcome) {
       >
         Reserve a seat
       </UButton>
+      <UButton
+        ref="cancelButton"
+        color="neutral"
+        variant="ghost"
+        :aria-describedby="titleId"
+        :disabled="busy"
+        @click="cancelOpen = true"
+      >
+        Cancel reservation
+      </UButton>
     </div>
 
     <UModal
       v-model:open="reserveOpen"
       title="Reserve a seat"
+      :content="reserveDialogContent"
       :dismissible="!busy"
       :close="!busy"
       :ui="dialogUi"
@@ -132,6 +161,23 @@ function onReserved(outcome: ReserveOutcome) {
           :busy="busy"
           :submit="(values) => reserve(workshop.id, values)"
           @done="onReserved"
+        />
+      </template>
+    </UModal>
+    <UModal
+      v-model:open="cancelOpen"
+      title="Cancel your reservation"
+      :dismissible="!busy"
+      :close="!busy"
+      :ui="dialogUi"
+      :description="dialogDescription"
+    >
+      <template #body>
+        <CancelForm
+          :busy="busy"
+          :email="bookedEmail"
+          :submit="(email) => cancel(workshop.id, email)"
+          @done="onCancelled"
         />
       </template>
     </UModal>

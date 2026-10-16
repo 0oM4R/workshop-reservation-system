@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Workshop } from '../api/types'
-import type { ReserveOutcome } from '../composables/useWorkshops'
+import type { CancelOutcome, ReserveOutcome } from '../composables/useWorkshops'
 import type { ReserveValues } from '../schemas'
 import WorkshopCard from './WorkshopCard.vue'
 
@@ -13,6 +13,7 @@ defineProps<{
   busy: boolean
   bookedEmails: Record<number, string>
   reserve: (workshopId: number, values: ReserveValues) => Promise<ReserveOutcome>
+  cancel: (workshopId: number, email: string) => Promise<CancelOutcome>
 }>()
 </script>
 
@@ -37,6 +38,7 @@ defineProps<{
         :busy="busy"
         :booked-email="bookedEmails[workshop.id]"
         :reserve="reserve"
+        :cancel="cancel"
       />
     </div>
   </section>

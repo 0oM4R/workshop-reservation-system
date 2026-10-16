@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reserveSchema } from './schemas'
+import { cancelSchema, reserveSchema } from './schemas'
 
 describe('reserveSchema', () => {
   it('trims the name and the email', () => {
@@ -16,5 +16,12 @@ describe('reserveSchema', () => {
     ['missing email', { name: 'Ada', email: '' }],
   ])('rejects %s', (_label, input) => {
     expect(reserveSchema.safeParse(input).success).toBe(false)
+  })
+})
+
+describe('cancelSchema', () => {
+  it('accepts a valid email and rejects a malformed one', () => {
+    expect(cancelSchema.safeParse({ email: 'ada@example.com' }).success).toBe(true)
+    expect(cancelSchema.safeParse({ email: 'nope' }).success).toBe(false)
   })
 })

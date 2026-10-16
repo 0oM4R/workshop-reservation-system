@@ -126,4 +126,39 @@ describe('booked workshops', () => {
 
     expect(bookedEmails.value).toEqual({})
   })
+
+  it('forgets the booking once that email cancels, in any letter case', async () => {
+    vi.mocked(api.post)
+      .mockResolvedValueOnce({ status: 201, data: { remaining: 7 } })
+      .mockResolvedValue({ data: { message: 'Done.' } })
+    const { bookedEmails, reserve, cancel } = useWorkshops()
+    await reserve(1, values)
+
+    await cancel(1, 'someone@example.com')
+    expect(bookedEmails.value).toEqual({ 1: 'ada@example.com' })
+    await cancel(1, 'ADA@example.com')
+
+    expect(bookedEmails.value).toEqual({})
+  })
+})
+
+describe('cancel', () => {
+  it('returns the server message', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { message: 'Done.' } })
+    const { cancel } = useWorkshops()
+
+    const outcome = await cancel(1, 'ada@example.com')
+
+    expect(api.post).toHaveBeenCalledWith('/workshops/1/reservations/cancel', {
+      email: 'ada@example.com',
+    })
+    expect(outcome).toEqual({ kind: 'cancelled', message: 'Done.' })
+  })
+
+  it('reports a failure', async () => {
+    vi.mocked(api.post).mockRejectedValue(failureWithStatus(404))
+    const { cancel } = useWorkshops()
+
+    expect((await cancel(1, 'ada@example.com')).kind).toBe('error')
+  })
 })

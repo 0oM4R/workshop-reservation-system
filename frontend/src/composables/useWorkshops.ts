@@ -1,12 +1,18 @@
 import axios, { HttpStatusCode } from 'axios'
 import { ref } from 'vue'
 import { api } from '../api/client'
-import type { Reservation, Workshop } from '../api/types'
+import type { CancelResult, Reservation, Workshop } from '../api/types'
 import type { ReserveValues } from '../schemas'
 
 /** What a reserve attempt came to, with a message fit to show the user. */
 export interface ReserveOutcome {
   kind: 'reserved' | 'already' | 'full' | 'error'
+  message: string
+}
+
+/** What a cancel attempt came to; the server's message is shown as is. */
+export interface CancelOutcome {
+  kind: 'cancelled' | 'error'
   message: string
 }
 
@@ -59,5 +65,23 @@ export function useWorkshops() {
     }
   }
 
-  return { workshops, loading, error, submitting, bookedEmails, load, reserve }
+  async function cancel(workshopId: number, email: string): Promise<CancelOutcome> {
+    submitting.value = true
+    try {
+      const response = await api.post<CancelResult>(
+        `/workshops/${workshopId}/reservations/cancel`,
+        { email },
+      )
+      if (bookedEmails.value[workshopId]?.toLowerCase() === email.toLowerCase()) {
+        delete bookedEmails.value[workshopId]
+      }
+      return { kind: 'cancelled', message: response.data.message }
+    } catch (failure) {
+      return { kind: 'error', message: `Could not cancel: ${describeFailure(failure)}` }
+    } finally {
+      submitting.value = false
+    }
+  }
+
+  return { workshops, loading, error, submitting, bookedEmails, load, reserve, cancel }
 }
