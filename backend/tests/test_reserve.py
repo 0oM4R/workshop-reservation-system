@@ -3,43 +3,14 @@
 import asyncio
 
 import pytest
-from httpx import AsyncClient, Response
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.schemas import NAME_MAX_LENGTH
-from tests.helpers import CreateWorkshop
+from app.services import reservations
+from tests.helpers import CreateWorkshop, cancel, counters, reserve
 
 RESERVATIONS_PER_BURST = 50
-
-
-async def reserve(
-    client: AsyncClient,
-    workshop_id: int,
-    email: str = "ada@example.com",
-    name: str = "Ada",
-) -> Response:
-    """POST a reservation."""
-    return await client.post(
-        f"/api/workshops/{workshop_id}/reservations",
-        json={"name": name, "email": email},
-    )
-
-
-async def counters(engine: AsyncEngine, workshop_id: int) -> tuple[int, int]:
-    """Return (reserved, active reservation rows) for a workshop."""
-    async with engine.connect() as connection:
-        row = (
-            await connection.execute(
-                text(
-                    "SELECT reserved, (SELECT count(*) FROM reservations "
-                    "WHERE workshop_id = w.id AND status = 'active') "
-                    "FROM workshops w WHERE id = :id"
-                ),
-                {"id": workshop_id},
-            )
-        ).one()
-    return row[0], row[1]
 
 
 @pytest.mark.parametrize(
@@ -179,3 +150,41 @@ async def test_duplicate_burst_creates_one_reservation(
     statuses = sorted(response.status_code for response in responses)
     assert statuses == [200] * 9 + [201]
     assert await counters(engine, workshop_id) == (1, 1)
+
+
+async def test_repeated_cancellation_race_returns_503(
+    client: AsyncClient,
+    engine: AsyncEngine,
+    create_workshop: CreateWorkshop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Return 503 after exactly two real cancellation races, allowing a retry."""
+    workshop_id = await create_workshop(capacity=1)
+    assert (await reserve(client, workshop_id)).status_code == 201
+    # Intercept only the race window; all reads and writes still use real Postgres.
+    existing = reservations._existing  # pyright: ignore[reportPrivateUsage]
+    attempts = 0
+
+    async def cancel_before_read(
+        session: AsyncSession, workshop_id: int, email: str
+    ) -> reservations.ReserveResult | None:
+        nonlocal attempts
+        attempts += 1
+        assert (await cancel(client, workshop_id, email)).status_code == 200
+        result = await existing(session, workshop_id, email)
+        assert result is None
+        # Restore a conflict for the next attempt using a separately committed seat.
+        assert (await reserve(client, workshop_id, email)).status_code == 201
+        return result
+
+    with monkeypatch.context() as patch:
+        patch.setattr(reservations, "_existing", cancel_before_read)
+        response = await reserve(client, workshop_id)
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Reservation changed while reserving; please retry"
+    }
+    assert attempts == 2
+    assert await counters(engine, workshop_id) == (1, 1)
+    assert (await reserve(client, workshop_id)).status_code == 200
