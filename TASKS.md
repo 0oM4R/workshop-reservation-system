@@ -22,7 +22,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 3. List workshops
 
-- [ ] **3.1 `GET /api/workshops`.** Returns `id`, `title`, `starts_at`, `capacity` and `remaining`, ordered by start time, with no emails. Check: an integration test asserts the shape and that `remaining = capacity - reserved`.
+- [x] **3.1 `GET /api/workshops`.** Returns `id`, `title`, `starts_at`, `capacity` and `remaining`, ordered by start time, with no emails. Check: an integration test asserts the shape and that `remaining = capacity - reserved`.
 
 ## 4. Reserve a seat
 
