@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { Workshop } from '../api/types'
+import type { ReserveOutcome } from '../composables/useWorkshops'
+import type { ReserveValues } from '../schemas'
 import WorkshopCard from './WorkshopCard.vue'
 
 const PLACEHOLDER_CARDS = 3
@@ -8,6 +10,9 @@ defineProps<{
   workshops: Workshop[]
   loading: boolean
   error: string | null
+  busy: boolean
+  bookedEmails: Record<number, string>
+  reserve: (workshopId: number, values: ReserveValues) => Promise<ReserveOutcome>
 }>()
 </script>
 
@@ -25,7 +30,14 @@ defineProps<{
           class="h-56 rounded-[1.25rem] bg-default"
         />
       </template>
-      <WorkshopCard v-for="workshop in workshops" :key="workshop.id" :workshop="workshop" />
+      <WorkshopCard
+        v-for="workshop in workshops"
+        :key="workshop.id"
+        :workshop="workshop"
+        :busy="busy"
+        :booked-email="bookedEmails[workshop.id]"
+        :reserve="reserve"
+      />
     </div>
   </section>
 </template>

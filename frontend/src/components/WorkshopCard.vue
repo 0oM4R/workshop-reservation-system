@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue'
+import { useToast } from '@nuxt/ui/composables'
+import { computed, ref, useId } from 'vue'
 import type { Workshop } from '../api/types'
+import type { ReserveOutcome } from '../composables/useWorkshops'
+import type { ReserveValues } from '../schemas'
+import ReserveForm from './ReserveForm.vue'
 
 const MAX_SEAT_DOTS = 20
 
@@ -11,9 +15,26 @@ const dayAndTimeFormat = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 })
 
-const props = defineProps<{ workshop: Workshop }>()
+const fullDateFormat = new Intl.DateTimeFormat(undefined, {
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+})
+
+const props = defineProps<{
+  workshop: Workshop
+  busy: boolean
+  bookedEmail?: string
+  reserve: (workshopId: number, values: ReserveValues) => Promise<ReserveOutcome>
+}>()
+
+const dialogUi = { title: 'font-display text-lg font-medium' }
 
 const titleId = useId()
+const toast = useToast()
+const reserveOpen = ref(false)
 
 const startsAt = computed(() => new Date(props.workshop.starts_at))
 const isFull = computed(() => props.workshop.remaining === 0)
@@ -21,6 +42,18 @@ const takenSeats = computed(() => props.workshop.capacity - props.workshop.remai
 const seatsLabel = computed(() =>
   isFull.value ? 'Full' : `${props.workshop.remaining} of ${props.workshop.capacity} seats left`,
 )
+const dialogDescription = computed(
+  () => `${props.workshop.title}, ${fullDateFormat.format(startsAt.value)}`,
+)
+
+function onReserved(outcome: ReserveOutcome) {
+  reserveOpen.value = false
+  toast.add({
+    title: outcome.message,
+    description: dialogDescription.value,
+    color: outcome.kind === 'reserved' ? 'success' : 'info',
+  })
+}
 </script>
 
 <template>
@@ -72,5 +105,35 @@ const seatsLabel = computed(() =>
         {{ seatsLabel }}
       </p>
     </div>
+    <div class="mt-5 flex flex-wrap items-center gap-2">
+      <UBadge v-if="bookedEmail" color="primary" variant="soft" size="xl" class="rounded-full px-4">
+        You're booked
+      </UBadge>
+      <UButton
+        v-else
+        :aria-describedby="titleId"
+        :disabled="busy || isFull"
+        @click="reserveOpen = true"
+      >
+        Reserve a seat
+      </UButton>
+    </div>
+
+    <UModal
+      v-model:open="reserveOpen"
+      title="Reserve a seat"
+      :dismissible="!busy"
+      :close="!busy"
+      :ui="dialogUi"
+      :description="dialogDescription"
+    >
+      <template #body>
+        <ReserveForm
+          :busy="busy"
+          :submit="(values) => reserve(workshop.id, values)"
+          @done="onReserved"
+        />
+      </template>
+    </UModal>
   </article>
 </template>

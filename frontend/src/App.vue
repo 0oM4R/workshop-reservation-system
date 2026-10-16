@@ -3,7 +3,7 @@ import { onMounted } from 'vue'
 import WorkshopList from './components/WorkshopList.vue'
 import { useWorkshops } from './composables/useWorkshops'
 
-const { workshops, loading, error, load } = useWorkshops()
+const { workshops, loading, error, submitting, bookedEmails, load, reserve } = useWorkshops()
 
 onMounted(load)
 </script>
@@ -19,7 +19,14 @@ onMounted(load)
           Pick a class and reserve a seat. Seat counts change live as people book.
         </p>
       </header>
-      <WorkshopList :workshops="workshops" :loading="loading" :error="error" />
+      <WorkshopList
+        :workshops="workshops"
+        :loading="loading"
+        :error="error"
+        :busy="submitting"
+        :booked-emails="bookedEmails"
+        :reserve="reserve"
+      />
     </UContainer>
   </UApp>
 </template>
