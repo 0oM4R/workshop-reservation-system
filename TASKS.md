@@ -34,9 +34,9 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 5. Cancel a reservation
 
-- [ ] **5.1 `cancel()` in the reservations service.** Find the active reservation by workshop and lowercased email, set `status = 'cancelled'`, and decrement `reserved` only if that changed a row. Check: a double cancel decrements once.
-- [ ] **5.2 `POST /api/workshops/{id}/reservations/cancel`.** Body: the email. Always 200 with the same message, whether the seat was just cancelled, was already cancelled or never existed, so a retried cancel never looks like a failure; 404 only for an unknown workshop. Check: a test for each case.
-- [ ] **5.3 Counter invariant.** A parallel mix of reserves and cancels. Check: afterwards `reserved` equals the number of active reservations for every workshop.
+- [x] **5.1 `cancel()` in the reservations service.** Find the active reservation by workshop and lowercased email, set `status = 'cancelled'`, and decrement `reserved` only if that changed a row. Check: a double cancel decrements once.
+- [x] **5.2 `POST /api/workshops/{id}/reservations/cancel`.** Body: the email. Always 200 with the same message, whether the seat was just cancelled, was already cancelled or never existed, so a retried cancel never looks like a failure; 404 only for an unknown workshop. Check: a test for each case.
+- [x] **5.3 Counter invariant.** A parallel mix of reserves and cancels. Check: afterwards `reserved` equals the number of active reservations for every workshop.
 
 ## 6. Live updates
 

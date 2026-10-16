@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import ColumnElement, and_, func, literal_column, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +19,10 @@ class WorkshopNotFound(Exception):
 
 class WorkshopFull(Exception):
     """Every seat of the workshop is taken."""
+
+
+class ReservationBusy(Exception):
+    """The active reservation was cancelled during every reserve attempt."""
 
 
 @dataclass(frozen=True)
@@ -39,13 +43,13 @@ async def reserve(
     Raises:
         WorkshopNotFound: If no workshop has this id.
         WorkshopFull: If no seat is left.
+        ReservationBusy: If both attempts race with cancellation.
     """
     for _ in range(MAX_ATTEMPTS):
         result = await _try_reserve(session, workshop_id, name, email)
         if result is not None:
             return result
-    msg = "active reservation kept disappearing while reserving"
-    raise RuntimeError(msg)
+    raise ReservationBusy(workshop_id)
 
 
 async def _try_reserve(
@@ -114,13 +118,58 @@ async def _existing(
             (Workshop.capacity - Workshop.reserved).label("remaining"),
         )
         .join(Workshop, Workshop.id == Reservation.workshop_id)
-        .where(
-            Reservation.workshop_id == workshop_id,
-            func.lower(Reservation.email) == func.lower(email),
-            Reservation.status == "active",
-        )
+        .where(_active_reservation(workshop_id, email))
     )
     row = (await session.execute(statement)).first()
     if row is None:
         return None
     return ReserveResult(row.id, row.name, row.remaining, created=False)
+
+
+async def cancel(session: AsyncSession, workshop_id: int, email: str) -> bool:
+    """Cancel the active reservation this email holds; return whether one existed.
+
+    Cancelling twice, or an email that never reserved, changes nothing.
+
+    Raises:
+        WorkshopNotFound: If no workshop has this id.
+    """
+    async with session.begin():
+        if not await _workshop_exists(session, workshop_id):
+            raise WorkshopNotFound(workshop_id)
+
+        if not await _mark_cancelled(session, workshop_id, email):
+            return False
+        await _release_seat(session, workshop_id)
+        return True
+
+
+async def _mark_cancelled(session: AsyncSession, workshop_id: int, email: str) -> bool:
+    """Flip the active reservation to cancelled; False if there was none."""
+    # Only the caller whose UPDATE changes the row may release the seat. A
+    # concurrent cancel waits on the row lock, then sees status != 'active'.
+    statement = (
+        update(Reservation)
+        .where(_active_reservation(workshop_id, email))
+        .values(status="cancelled")
+        .returning(Reservation.id)
+    )
+    return await session.scalar(statement) is not None
+
+
+async def _release_seat(session: AsyncSession, workshop_id: int) -> None:
+    """Count one fewer seat as reserved."""
+    await session.execute(
+        update(Workshop)
+        .where(Workshop.id == workshop_id)
+        .values(reserved=Workshop.reserved - 1)
+    )
+
+
+def _active_reservation(workshop_id: int, email: str) -> ColumnElement[bool]:
+    """Match the active seat using the partial index's literal predicate."""
+    return and_(
+        Reservation.workshop_id == workshop_id,
+        func.lower(Reservation.email) == func.lower(email),
+        Reservation.status == literal_column("'active'"),
+    )

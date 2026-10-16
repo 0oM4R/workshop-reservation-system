@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.db import engine
 from app.routes import router as workshops_router
-from app.services.reservations import WorkshopFull, WorkshopNotFound
+from app.services.reservations import ReservationBusy, WorkshopFull, WorkshopNotFound
 
 api = APIRouter(prefix="/api")
 api.include_router(workshops_router)
@@ -46,4 +46,13 @@ async def workshop_full(_: Request, __: WorkshopFull) -> JSONResponse:
     """Map a full workshop to 409."""
     return JSONResponse(
         {"detail": "Workshop is full"}, status_code=status.HTTP_409_CONFLICT
+    )
+
+
+@app.exception_handler(ReservationBusy)
+async def reservation_busy(_: Request, __: ReservationBusy) -> JSONResponse:
+    """Map exhausted cancellation race retries to 503."""
+    return JSONResponse(
+        {"detail": "Reservation changed while reserving; please retry"},
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
     )

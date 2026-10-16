@@ -21,7 +21,7 @@ class WorkshopOut(BaseModel):
 NAME_MAX_LENGTH = 100
 
 
-class ReserveRequest(BaseModel):
+class ReserveIn(BaseModel):
     """Who is reserving a seat."""
 
     name: Annotated[
@@ -44,3 +44,15 @@ class ReservationOut(BaseModel):
     workshop_id: int
     name: str
     remaining: int
+
+
+class CancelIn(BaseModel):
+    """The email a seat was reserved with."""
+
+    email: EmailStr
+
+
+class CancelOut(BaseModel):
+    """Same answer whether or not a seat was released."""
+
+    message: str

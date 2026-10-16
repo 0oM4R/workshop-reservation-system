@@ -6,11 +6,19 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Response, status
 
 from app.db import SessionDep
-from app.schemas import ReservationOut, ReserveRequest, WorkshopOut
+from app.schemas import (
+    CancelIn,
+    CancelOut,
+    ReservationOut,
+    ReserveIn,
+    WorkshopOut,
+)
 from app.services import reservations, workshops
 
 router = APIRouter(prefix="/workshops")
 POSTGRES_INTEGER_MAX = 2_147_483_647
+# Identical for every outcome, so a retried cancel never looks like a failure.
+CANCEL_MESSAGE = "If this email held a seat, it has been cancelled."
 
 
 @router.get("", response_model=list[WorkshopOut])
@@ -26,7 +34,7 @@ async def list_workshops(session: SessionDep) -> Sequence[workshops.WorkshopRow]
 )
 async def reserve_seat(
     workshop_id: Annotated[int, Path(gt=0, le=POSTGRES_INTEGER_MAX)],
-    body: ReserveRequest,
+    body: ReserveIn,
     session: SessionDep,
     response: Response,
 ) -> ReservationOut:
@@ -40,3 +48,14 @@ async def reserve_seat(
         name=result.name,
         remaining=result.remaining,
     )
+
+
+@router.post("/{workshop_id}/reservations/cancel", response_model=CancelOut)
+async def cancel_reservation(
+    workshop_id: Annotated[int, Path(gt=0, le=POSTGRES_INTEGER_MAX)],
+    body: CancelIn,
+    session: SessionDep,
+) -> CancelOut:
+    """Cancel a seat: same 200 message, or 404 for an unknown workshop."""
+    await reservations.cancel(session, workshop_id, body.email)
+    return CancelOut(message=CANCEL_MESSAGE)

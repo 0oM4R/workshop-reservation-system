@@ -95,7 +95,7 @@ Reserving is one transaction, in this order:
 - All routes live under `/api`; nginx and the Vite proxy forward the path unchanged. The SSE stream is `GET /api/events`.
 - Validate every input server-side with Pydantic. Frontend validation is only for feedback.
 - Responses expose `remaining` seats and never include other people's emails. Emails are trimmed and compared case-insensitively.
-- Cancelling is `POST /api/workshops/{id}/reservations/cancel` with the email used to reserve. It always returns 200 with the same message, so a retried cancel never looks like a failure. No endpoint lists reservations by email.
+- Cancelling is `POST /api/workshops/{id}/reservations/cancel` with the email used to reserve. For a known workshop it always returns 200 with the same message, so a retried cancel never looks like a failure; an unknown workshop returns 404. No endpoint lists reservations by email.
 
 ## Database and migrations
 
