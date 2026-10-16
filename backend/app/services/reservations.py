@@ -2,15 +2,34 @@
 
 from dataclasses import dataclass
 
-from sqlalchemy import ColumnElement, and_, func, literal_column, select, text, update
+from sqlalchemy import (
+    ColumnElement,
+    Text,
+    and_,
+    func,
+    literal_column,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.events import NOTIFY_CHANNEL
 from app.models import Reservation, Workshop
 
 # One retry covers an active reservation cancelled between our insert
 # conflicting with it and our read of it.
 MAX_ATTEMPTS = 2
+
+# Returned by a seat UPDATE: queues one NOTIFY per changed row with its new count,
+# in the same round trip. Postgres sends it on commit and drops it on rollback.
+NOTIFY_SEATS_CHANGED = func.pg_notify(
+    NOTIFY_CHANNEL,
+    func.json_build_object(
+        "workshop_id", Workshop.id, "remaining", Workshop.capacity - Workshop.reserved
+    ).cast(Text),
+)
 
 
 class WorkshopNotFound(Exception):
@@ -96,13 +115,13 @@ async def _insert_if_no_active(
 
 
 async def _take_seat(session: AsyncSession, workshop_id: int) -> int | None:
-    """Count one more seat as reserved; return seats left, or None if full."""
+    """Take a seat and notify; return seats left, or None if full."""
     # The WHERE clause is the capacity gate: no seat check happens in Python.
     statement = (
         update(Workshop)
         .where(Workshop.id == workshop_id, Workshop.reserved < Workshop.capacity)
         .values(reserved=Workshop.reserved + 1)
-        .returning(Workshop.capacity - Workshop.reserved)
+        .returning(Workshop.capacity - Workshop.reserved, NOTIFY_SEATS_CHANGED)
     )
     return await session.scalar(statement)
 
@@ -158,11 +177,12 @@ async def _mark_cancelled(session: AsyncSession, workshop_id: int, email: str) -
 
 
 async def _release_seat(session: AsyncSession, workshop_id: int) -> None:
-    """Count one fewer seat as reserved."""
+    """Count one fewer seat as reserved and notify."""
     await session.execute(
         update(Workshop)
         .where(Workshop.id == workshop_id)
         .values(reserved=Workshop.reserved - 1)
+        .returning(NOTIFY_SEATS_CHANGED)
     )
 
 

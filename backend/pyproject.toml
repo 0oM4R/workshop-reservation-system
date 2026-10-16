@@ -9,11 +9,13 @@ dependencies = [
     "fastapi>=0.143.1",
     "pydantic-settings>=2.16.0",
     "sqlalchemy[asyncio]>=2.1.4",
+    "sse-starlette>=3.5.0",
     "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
+    "asyncpg-stubs>=0.32.0",
     "httpx>=0.28.1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",

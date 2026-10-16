@@ -5,7 +5,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 ## 1. Foundation
 
 - [x] **1.1 Backend skeleton.** `backend/` managed with uv (`pyproject.toml`, `.python-version`, `uv.lock`); FastAPI app with `GET /api/health`. Check: `uv run uvicorn app.main:app` answers `{"status": "ok"}`.
-- [x] **1.2 Settings.** pydantic-settings class (database URL, test database URL, `SEED_DATA`, broadcaster type) and `.env.example`. Check: every setting is listed in `.env.example` with a working default.
+- [x] **1.2 Settings.** pydantic-settings class (database URL, test database URL, `SEED_DATA`) and `.env.example`. Check: every setting is listed in `.env.example` with a working default.
 - [x] **1.3 Backend tooling.** Ruff (including the docstring rules `D` with the Google convention) and pyright configured in `pyproject.toml`; pytest, pytest-asyncio and httpx as dev dependencies; one test for `/api/health`. Check: `uv run ruff check`, `uv run ruff format --check`, `uv run pyright` and `uv run pytest` pass.
 - [x] **1.4 Frontend skeleton.** Vue 3 + TypeScript + Vite in `frontend/`, Nuxt UI through its Vite plugin, Vite proxy for `/api` to `localhost:8000`. Check: `npm run dev` shows a page that displays the health response.
 - [x] **1.5 Frontend tooling.** ESLint, Prettier, vue-tsc and Vitest, with npm scripts `lint`, `format`, `typecheck`, `test`. Check: `npm run lint`, `npm run typecheck` and `npm run test` pass.
@@ -40,10 +40,10 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 6. Live updates
 
-- [ ] **6.1 `Broadcaster` interface and in-process implementation.** One bounded `asyncio.Queue` per subscriber; drop subscribers whose queue is full. Check: unit tests for fan-out and for dropping a slow subscriber.
-- [ ] **6.2 `GET /api/events`.** sse-starlette with keep-alive pings and cleanup on disconnect. Check: `curl -N localhost:8000/api/events` shows pings, and closing it removes the subscriber.
-- [ ] **6.3 Publish after commit.** Reserve and cancel publish `{workshop_id, remaining}` only after commit. Check: tests see an event after a new reservation and a cancel, and none after a 409, a repeated reserve or a second cancel.
-- [ ] **6.4 Postgres LISTEN/NOTIFY broadcaster.** `NOTIFY` inside the transaction; one dedicated asyncpg listener per process that reconnects; chosen by a setting. Check: the 6.3 tests pass with it, and an event published through one API process reaches a client of another.
+- [x] **6.1 `Broadcaster` interface and in-process implementation.** One bounded `asyncio.Queue` per subscriber; drop subscribers whose queue is full. Check: unit tests for fan-out and for dropping a slow subscriber.
+- [x] **6.2 `GET /api/events`.** sse-starlette with keep-alive pings and cleanup on disconnect. Check: `curl -N localhost:8000/api/events` shows pings, and closing it removes the subscriber.
+- [x] **6.3 Publish after commit.** Reserve and cancel publish `{workshop_id, remaining}` only after commit. Check: tests see an event after a new reservation and a cancel, and none after a 409, a repeated reserve or a second cancel.
+- [x] **6.4 Postgres LISTEN/NOTIFY broadcaster.** `NOTIFY` inside the transaction; one dedicated asyncpg listener per process that reconnects; the only broadcaster the app runs. Check: the 6.3 tests pass with it, and an event published through one API process reaches a client of another.
 
 ## 7. Frontend
 

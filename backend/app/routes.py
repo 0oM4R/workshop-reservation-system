@@ -1,11 +1,13 @@
 """HTTP routes under `/api`: validate input, call a service, shape the response."""
 
-from collections.abc import Sequence
+from collections.abc import AsyncGenerator, Sequence
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Response, status
+from fastapi import APIRouter, Depends, Path, Response, status
+from sse_starlette import EventSourceResponse, ServerSentEvent
 
 from app.db import SessionDep
+from app.events import Broadcaster, get_broadcaster
 from app.schemas import (
     CancelIn,
     CancelOut,
@@ -16,7 +18,13 @@ from app.schemas import (
 from app.services import reservations, workshops
 
 router = APIRouter(prefix="/workshops")
+events_router = APIRouter()
+BroadcasterDep = Annotated[Broadcaster, Depends(get_broadcaster)]
 POSTGRES_INTEGER_MAX = 2_147_483_647
+PING_INTERVAL_SECONDS = 15
+# A send blocked this long means the client stopped reading; TCP alone never
+# closes a connection whose peer still acknowledges, so the stream is ended.
+SEND_TIMEOUT_SECONDS = 30
 # Identical for every outcome, so a retried cancel never looks like a failure.
 CANCEL_MESSAGE = "If this email held a seat, it has been cancelled."
 
@@ -59,3 +67,20 @@ async def cancel_reservation(
     """Cancel a seat: same 200 message, or 404 for an unknown workshop."""
     await reservations.cancel(session, workshop_id, body.email)
     return CancelOut(message=CANCEL_MESSAGE)
+
+
+async def seat_events(broadcaster: Broadcaster) -> AsyncGenerator[ServerSentEvent]:
+    """Yield each seat-count change until the client goes away or falls behind."""
+    async with broadcaster.subscribe() as queue:
+        while (event := await queue.get()) is not None:
+            yield ServerSentEvent(data=event.to_json())
+
+
+@events_router.get("/events")
+async def events(broadcaster: BroadcasterDep) -> EventSourceResponse:
+    """Stream `{workshop_id, remaining}` whenever a workshop's seats change."""
+    return EventSourceResponse(
+        seat_events(broadcaster),
+        ping=PING_INTERVAL_SECONDS,
+        send_timeout=SEND_TIMEOUT_SECONDS,
+    )

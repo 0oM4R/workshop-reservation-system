@@ -7,11 +7,14 @@ from fastapi import APIRouter, FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from app.db import engine
+from app.events import get_broadcaster
+from app.routes import events_router
 from app.routes import router as workshops_router
 from app.services.reservations import ReservationBusy, WorkshopFull, WorkshopNotFound
 
 api = APIRouter(prefix="/api")
 api.include_router(workshops_router)
+api.include_router(events_router)
 
 
 @api.get("/health")
@@ -22,9 +25,14 @@ async def health() -> dict[str, str]:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
-    """Close the database connection pool when the app shuts down."""
-    yield
-    await engine.dispose()
+    """Run the broadcaster while the app is up; close the pool on shutdown."""
+    broadcaster = get_broadcaster()
+    await broadcaster.start()
+    try:
+        yield
+    finally:
+        await broadcaster.stop()
+        await engine.dispose()
 
 
 app = FastAPI(title="Workshop Reservations", lifespan=lifespan)

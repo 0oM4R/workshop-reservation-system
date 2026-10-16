@@ -83,8 +83,8 @@ Reserving is one transaction, in this order:
 
 ## Live updates
 
-- Publish only after the transaction commits. Postgres delivers `NOTIFY` on commit by itself; the in-process broadcaster must be called after commit.
-- Events go through the `Broadcaster` interface (in-process implementation first, Postgres LISTEN/NOTIFY next).
+- Publish only after the transaction commits: the seat `UPDATE` queues the `NOTIFY` with `pg_notify` in its `RETURNING`, and Postgres sends it on commit and drops it on rollback. Never publish from Python.
+- SSE clients subscribe through the `Broadcaster` interface. The app runs the Postgres LISTEN/NOTIFY implementation; the in-process one fans out to each process's clients and is the test fake.
 - The payload is `{workshop_id, remaining}` only (NOTIFY payloads are capped at 8 KB). Clients re-fetch the list on every connect and reconnect.
 - The LISTEN connection is a dedicated asyncpg connection with a plain `postgresql://` URL, never taken from the SQLAlchemy pool, and it reconnects on failure.
 - Each SSE client gets a bounded `asyncio.Queue`; drop clients that fall behind.
