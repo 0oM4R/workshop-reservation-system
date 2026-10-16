@@ -9,6 +9,11 @@ export default defineConfig(
   js.configs.recommended,
   tseslint.configs.recommended,
   vue.configs['flat/recommended'],
-  { files: ['**/*.vue'], languageOptions: { parserOptions: { parser: tseslint.parser } } },
+  {
+    files: ['**/*.vue'],
+    languageOptions: { parserOptions: { parser: tseslint.parser } },
+    // vue-tsc already checks names; no-undef doesn't know DOM types like HTMLElement.
+    rules: { 'no-undef': 'off' },
+  },
   prettier,
 )

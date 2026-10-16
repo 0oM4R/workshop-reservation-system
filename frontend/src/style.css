@@ -1,2 +1,23 @@
 @import 'tailwindcss';
 @import '@nuxt/ui';
+
+@theme {
+  --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fredoka', 'Figtree', ui-rounded, sans-serif;
+}
+
+/* Solid primary one step darker than Nuxt UI's default so white button text stays readable. */
+:root {
+  --ui-radius: 0.5rem;
+  --ui-primary: var(--ui-color-primary-700);
+  --paper: oklch(95.5% 0.02 140);
+}
+
+.dark {
+  --ui-primary: var(--ui-color-primary-400);
+  --paper: oklch(16% 0.01 107);
+}
+
+body {
+  background: var(--paper);
+}
