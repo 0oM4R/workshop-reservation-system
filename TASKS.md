@@ -5,7 +5,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 ## 1. Foundation
 
 - [x] **1.1 Backend skeleton.** `backend/` managed with uv (`pyproject.toml`, `.python-version`, `uv.lock`); FastAPI app with `GET /api/health`. Check: `uv run uvicorn app.main:app` answers `{"status": "ok"}`.
-- [x] **1.2 Settings.** pydantic-settings class (database URL, test database URL, `SEED_DATA`) and `.env.example`. Check: every setting is listed in `.env.example` with a working default.
+- [x] **1.2 Settings.** pydantic-settings class (database URL, test database URL) read from environment variables, with defaults that suit local development. Check: the app and the tests start with nothing set.
 - [x] **1.3 Backend tooling.** Ruff (including the docstring rules `D` with the Google convention) and pyright configured in `pyproject.toml`; pytest, pytest-asyncio and httpx as dev dependencies; one test for `/api/health`. Check: `uv run ruff check`, `uv run ruff format --check`, `uv run pyright` and `uv run pytest` pass.
 - [x] **1.4 Frontend skeleton.** Vue 3 + TypeScript + Vite in `frontend/`, Nuxt UI through its Vite plugin, Vite proxy for `/api` to `localhost:8000`. Check: `npm run dev` shows a page that displays the health response.
 - [x] **1.5 Frontend tooling.** ESLint, Prettier, vue-tsc and Vitest, with npm scripts `lint`, `format`, `typecheck`, `test`. Check: `npm run lint`, `npm run typecheck` and `npm run test` pass.
@@ -17,7 +17,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 - [x] **2.1 Alembic.** Async `env.py` reading the URL from settings. Check: `uv run alembic upgrade head` runs on an empty database.
 - [x] **2.2 Workshops table.** Model and migration: `id`, `slug` (unique), `title`, `starts_at`, `capacity`, `reserved` (default 0), `CHECK (reserved BETWEEN 0 AND capacity)`. Check: a test shows that setting `reserved` above `capacity` fails.
 - [x] **2.3 Reservations table.** Model and migration: `id`, `workshop_id`, `name`, `email`, `status` (`active` or `cancelled`), timestamps, and the partial unique index on `(workshop_id, lower(email)) WHERE status = 'active'`. Check: a second active reservation for the same workshop and email in any letter case fails; one after a cancellation succeeds.
-- [x] **2.4 Seed script.** `python -m app.seed` inserts about six workshops, one with capacity 1; `ON CONFLICT DO NOTHING` on slug; runs only when `SEED_DATA=true`. Check: running it twice leaves the same rows. `make dev-db` now migrates and seeds.
+- [x] **2.4 Seed script.** `python -m app.seed` inserts about six workshops, one with capacity 1; `ON CONFLICT DO NOTHING` on slug. Check: running it twice leaves the same rows. `make dev-db` now migrates and seeds.
 - [x] **2.5 Test fixtures.** Tests use `workshops_test`, migrate once per session and truncate tables between tests. Check: two tests that insert the same slug both pass.
 
 ## 3. List workshops
@@ -56,15 +56,15 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 8. Containers
 
-- [ ] **8.1 API image.** Dockerfile copying uv from its official image and running `uv sync --locked`. Check: `docker compose build api` succeeds.
-- [ ] **8.2 `migrate` service.** Same image; runs `alembic upgrade head`, then the seed when `SEED_DATA=true`; `api` waits for it with `service_completed_successfully`. Check: `docker compose up` shows migrate exiting 0 before `api` starts.
-- [ ] **8.3 Web image.** Node build stage, then nginx: `try_files $uri /index.html`, `/api/` proxied to `api:8000`, `proxy_buffering off` and a long read timeout on `/api/events`. Check: the page and `/api/workshops` both load through nginx.
-- [ ] **8.4 Full stack.** Only `web` publishes a port; every variable has a default. Check: a fresh clone with no `.env` starts with `docker compose up` and lists the seeded workshops.
-- [ ] **8.5 SSE smoke test.** pytest against the running stack through nginx: open the stream, reserve, and expect the event within a few seconds. Check: it passes against `docker compose up`.
+- [x] **8.1 API image.** Dockerfile copying uv from its official image and running `uv sync --locked`. Check: `docker compose build api` succeeds.
+- [x] **8.2 `migrate` service.** Same image; runs `alembic upgrade head`, then the seed; `api` waits for it with `service_completed_successfully`. Check: `docker compose up` shows migrate exiting 0 before `api` starts.
+- [x] **8.3 Web image.** Node build stage, then nginx: `try_files $uri /index.html`, `/api/` proxied to `api:8000`, `proxy_buffering off` and a long read timeout on `/api/events`. Check: the page and `/api/workshops` both load through nginx.
+- [x] **8.4 Full stack.** Only `web` publishes a port; nothing needs configuring. Check: a fresh clone starts with `docker compose up` and lists the seeded workshops.
+- [x] **8.5 SSE smoke test.** pytest against the running stack through nginx: open the stream, reserve, and expect the event within a few seconds. Check: it passes against `docker compose up`.
 
 ## 9. CI
 
-- [ ] **9.1 GitHub Actions.** On push and pull request: `make lint`, backend tests with a Postgres service container, frontend tests, and `docker compose build`. Check: all jobs pass on a pull request.
+- [ ] **9.1 GitHub Actions.** On every pull request and push to `development`: `make lint`, backend tests with a Postgres service container, frontend tests, and the full stack started with the SSE smoke test. Check: all jobs pass on a pull request.
 
 ## 10. Documentation
 

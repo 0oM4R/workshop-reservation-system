@@ -1,0 +1,6 @@
+# Added by `make dev-db` so the API, tests and migrations on the host can reach
+# Postgres. Left out of the full stack, where only `web` publishes a port.
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"

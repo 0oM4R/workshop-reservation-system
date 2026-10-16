@@ -5,9 +5,6 @@ services:
       POSTGRES_USER: workshops
       POSTGRES_PASSWORD: workshops
       POSTGRES_DB: workshops
-    ports:
-      # Published for local development; 8.4 must unpublish it for the full stack
-      - "127.0.0.1:5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./backend/db/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
@@ -16,6 +13,42 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+  # Runs the migrations and the demo seed once, then exits 0; `api` starts only after it succeeds.
+  migrate:
+    build: ./backend
+    image: workshop-reservations-api
+    command: sh -c "alembic upgrade head && python -m app.seed"
+    environment: &backend-environment
+      DATABASE_URL: postgresql+asyncpg://workshops:workshops@db:5432/workshops
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: ./backend
+    image: workshop-reservations-api
+    environment: *backend-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  web:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   db-data:

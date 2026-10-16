@@ -1,16 +1,10 @@
-"""Application configuration loaded from the environment."""
+"""Application configuration loaded from environment variables."""
 
-from pathlib import Path
-
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-REPO_ROOT_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Settings read from the environment, then the repo-root `.env` if present."""
-
-    model_config = SettingsConfigDict(env_file=REPO_ROOT_ENV_FILE)
+    """Settings read from environment variables; the defaults suit local development."""
 
     database_url: str = (
         "postgresql+asyncpg://workshops:workshops@localhost:5432/workshops"
@@ -18,7 +12,6 @@ class Settings(BaseSettings):
     test_database_url: str = (
         "postgresql+asyncpg://workshops:workshops@localhost:5432/workshops_test"
     )
-    seed_data: bool = False
 
 
 settings = Settings()

@@ -16,25 +16,27 @@ These hold under any load and drive most of the design below.
 - **Backend:** Python (version in `backend/.python-version`), FastAPI, SQLAlchemy 2.0 async on asyncpg, Alembic, pydantic-settings, sse-starlette. Managed with uv.
 - **Frontend:** Vue 3, TypeScript, Vite, Nuxt UI through its Vite plugin (not the Nuxt framework), Axios, Zod. Managed with npm.
 - **Database:** PostgreSQL.
-- **Quality:** Ruff, pyright, pytest (pytest-asyncio, httpx); ESLint, Prettier, vue-tsc, Vitest. CI is GitHub Actions on every push and pull request.
+- **Quality:** Ruff, pyright, pytest (pytest-asyncio, httpx); ESLint, Prettier, vue-tsc, Vitest. CI is GitHub Actions on every pull request and every push to `development`.
 
 ## Layout
 
 - `backend/`: the API (`app/`), Alembic migrations, tests
 - `frontend/`: the Vue app and the nginx config for the `web` image
 - `compose.yaml`: `db`, `migrate` (runs migrations and the seed script, then exits 0), `api`, and `web` (nginx serving the built frontend and proxying `/api/*` to `api`). Only `web` publishes a port.
-- `Makefile`: `dev-db`, `lint`, `test`
-- `.env.example`: every configuration variable
+- `compose.dev.yaml`: adds the published Postgres port for `make dev-db`; not part of the full stack
+- `Makefile`: `dev-db`, `dev-api`, `dev-web`, `lint`, `test`
+- `.github/workflows/ci.yml`: lint, backend and frontend tests, and a Compose stack start plus the SSE smoke test, on every pull request and every push to `development`
 
 ## Commands
 
 ```sh
 make dev-db                                          # Postgres in Docker, migrated and seeded; also creates workshops_test
-cd backend && uv run uvicorn app.main:app --reload   # API on :8000
-cd frontend && npm run dev                           # Vite dev server; proxies /api to :8000
+make dev-api                                         # dev-db, then the API on :8000 with reload
+make dev-web                                         # Vite dev server; proxies /api to :8000
 make lint                                            # Ruff, pyright, ESLint, Prettier, vue-tsc
 make test                                            # pytest (needs make dev-db) and Vitest
-docker compose up --build                            # full stack through nginx
+docker compose up --build                            # full stack through nginx on :8080
+cd backend && uv run pytest smoke                    # SSE smoke test; needs the full stack up
 ```
 
 Run `make lint` and `make test` before calling a change done; CI runs the same targets.
@@ -100,7 +102,7 @@ Reserving is one transaction, in this order:
 ## Database and migrations
 
 - Never edit a merged migration; add a new one. Autogenerate can miss CHECK constraints and expression or partial indexes, so review every generated file.
-- Migrations hold the schema and required reference data. Demo data lives in the seed script (`python -m app.seed`), runs only when `SEED_DATA=true`, and is safe to rerun (`ON CONFLICT DO NOTHING` on a fixed slug).
+- Migrations hold the schema and required reference data. Demo data lives in the seed script (`python -m app.seed`), which `make dev-db` and the `migrate` service always run, and is safe to rerun (`ON CONFLICT DO NOTHING` on a fixed slug).
 
 ## Testing
 
@@ -121,7 +123,7 @@ Reserving is one transaction, in this order:
 
 ## Conventions
 
-- Configuration comes from pydantic-settings; never read `os.environ` directly. A new variable goes in the settings class, in `.env.example`, and as a default in `compose.yaml`, so `docker compose up` works without a `.env`.
+- Configuration comes from pydantic-settings; never read `os.environ` directly. A new variable goes in the settings class with a default that suits local development, and in `compose.yaml` when the containers need another value. There is no `.env` file.
 - Add dependencies with `uv add` and `npm install`; commit `uv.lock` and `package-lock.json`.
 - Type hints everywhere in Python; no synchronous database calls in request handlers.
-- Never commit secrets or a `.env` file.
+- Never commit secrets.
