@@ -22,15 +22,15 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 3. List workshops
 
-- [ ] **3.1 `GET /api/workshops`.** Returns `id`, `title`, `starts_at`, `capacity` and `remaining`, ordered by start time, with no emails. Check: an integration test asserts the shape and that `remaining = capacity - reserved`.
+- [x] **3.1 `GET /api/workshops`.** Returns `id`, `title`, `starts_at`, `capacity` and `remaining`, ordered by start time, with no emails. Check: an integration test asserts the shape and that `remaining = capacity - reserved`.
 
 ## 4. Reserve a seat
 
-- [ ] **4.1 Request validation.** Name required with a length limit; email valid and trimmed. Check: tests show invalid input returns 422.
-- [ ] **4.2 `reserve()` in the reservations service.** Insert with the named conflict target, then the conditional `UPDATE`, in one transaction; retry once if the conflicting reservation was cancelled before it could be read. Check: tests for a new reservation, the same email in another letter case, and a full workshop with the counter unchanged.
-- [ ] **4.3 `POST /api/workshops/{id}/reservations`.** 201 new, 200 existing, 409 full, 404 unknown workshop. Check: one test per status.
-- [ ] **4.4 Capacity under load.** 50 parallel reserves on a 10-seat workshop. Check: exactly 10 succeed and `reserved = 10`, five runs in a row.
-- [ ] **4.5 Duplicate burst.** The same email sent 10 times in parallel. Check: one reservation, one 201, the rest 200.
+- [x] **4.1 Request validation.** Name required with a length limit; email valid and trimmed. Check: tests show invalid input returns 422.
+- [x] **4.2 `reserve()` in the reservations service.** Insert with the named conflict target, then the conditional `UPDATE`, in one transaction; retry once if the conflicting reservation was cancelled before it could be read. Check: tests for a new reservation, the same email in another letter case, and a full workshop with the counter unchanged.
+- [x] **4.3 `POST /api/workshops/{id}/reservations`.** 201 new, 200 existing, 409 full, 404 unknown workshop. Check: one test per status.
+- [x] **4.4 Capacity under load.** 50 parallel reserves on a 10-seat workshop. Check: exactly 10 succeed and `reserved = 10`, five runs in a row.
+- [x] **4.5 Duplicate burst.** The same email sent 10 times in parallel. Check: one reservation, one 201, the rest 200.
 
 ## 5. Cancel a reservation
 
