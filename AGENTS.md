@@ -16,7 +16,7 @@ These hold under any load and drive most of the design below.
 - **Backend:** Python (version in `backend/.python-version`), FastAPI, SQLAlchemy 2.0 async on asyncpg, Alembic, pydantic-settings, sse-starlette. Managed with uv.
 - **Frontend:** Vue 3, TypeScript, Vite, Nuxt UI through its Vite plugin (not the Nuxt framework), Axios, Zod. Managed with npm.
 - **Database:** PostgreSQL.
-- **Quality:** Ruff, pyright, pytest (pytest-asyncio, httpx); ESLint, Prettier, vue-tsc, Vitest. CI is GitHub Actions on every push and pull request.
+- **Quality:** Ruff, pyright, pytest (pytest-asyncio, httpx); ESLint, Prettier, vue-tsc, Vitest. CI is GitHub Actions on every pull request and every push to `development`.
 
 ## Layout
 
@@ -25,6 +25,7 @@ These hold under any load and drive most of the design below.
 - `compose.yaml`: `db`, `migrate` (runs migrations and the seed script, then exits 0), `api`, and `web` (nginx serving the built frontend and proxying `/api/*` to `api`). Only `web` publishes a port.
 - `compose.dev.yaml`: adds the published Postgres port for `make dev-db`; not part of the full stack
 - `Makefile`: `dev-db`, `lint`, `test`
+- `.github/workflows/ci.yml`: lint, backend and frontend tests, and a Compose stack start plus the SSE smoke test, on every pull request and every push to `development`
 
 ## Commands
 

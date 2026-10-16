@@ -64,7 +64,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 9. CI
 
-- [ ] **9.1 GitHub Actions.** On push and pull request: `make lint`, backend tests with a Postgres service container, frontend tests, and `docker compose build`. Check: all jobs pass on a pull request.
+- [ ] **9.1 GitHub Actions.** On every pull request and push to `development`: `make lint`, backend tests with a Postgres service container, frontend tests, and the full stack started with the SSE smoke test. Check: all jobs pass on a pull request.
 
 ## 10. Documentation
 

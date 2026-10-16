@@ -1,0 +1,104 @@
+name: CI
+
+# Branch pushes are covered by their pull request run, which tests the merge
+# result; running on both would check every commit twice.
+on:
+  push:
+    branches: [development]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: uv sync --locked
+        working-directory: backend
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: make lint
+
+  backend-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: workshops
+          POSTGRES_PASSWORD: workshops
+          POSTGRES_DB: workshops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U workshops"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      PGPASSWORD: workshops
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --locked
+        working-directory: backend
+      - run: psql -h localhost -U workshops -d workshops -f backend/db/init-test-db.sql
+      - run: uv run pytest
+        working-directory: backend
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+
+  # Builds the images and starts the whole stack, so a broken Dockerfile, nginx
+  # config or migration fails here, not after a merge.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: docker compose up -d --build --wait
+      - run: curl --fail --silent http://localhost:8080/api/workshops
+      - run: uv sync --locked
+        working-directory: backend
+      - run: uv run pytest smoke
+        working-directory: backend
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down --volumes
