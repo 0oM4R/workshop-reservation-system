@@ -24,7 +24,6 @@ These hold under any load and drive most of the design below.
 - `frontend/`: the Vue app and the nginx config for the `web` image
 - `compose.yaml`: `db`, `migrate` (runs migrations and the seed script, then exits 0), `api`, and `web` (nginx serving the built frontend and proxying `/api/*` to `api`). Only `web` publishes a port.
 - `Makefile`: `dev-db`, `lint`, `test`
-- `.env.example`: every configuration variable
 
 ## Commands
 
@@ -100,7 +99,7 @@ Reserving is one transaction, in this order:
 ## Database and migrations
 
 - Never edit a merged migration; add a new one. Autogenerate can miss CHECK constraints and expression or partial indexes, so review every generated file.
-- Migrations hold the schema and required reference data. Demo data lives in the seed script (`python -m app.seed`), runs only when `SEED_DATA=true`, and is safe to rerun (`ON CONFLICT DO NOTHING` on a fixed slug).
+- Migrations hold the schema and required reference data. Demo data lives in the seed script (`python -m app.seed`), which `make dev-db` and the `migrate` service always run, and is safe to rerun (`ON CONFLICT DO NOTHING` on a fixed slug).
 
 ## Testing
 
@@ -120,7 +119,7 @@ Reserving is one transaction, in this order:
 
 ## Conventions
 
-- Configuration comes from pydantic-settings; never read `os.environ` directly. A new variable goes in the settings class, in `.env.example`, and as a default in `compose.yaml`, so `docker compose up` works without a `.env`.
+- Configuration comes from pydantic-settings; never read `os.environ` directly. A new variable goes in the settings class with a default that suits local development, and in `compose.yaml` when the containers need another value. There is no `.env` file.
 - Add dependencies with `uv add` and `npm install`; commit `uv.lock` and `package-lock.json`.
 - Type hints everywhere in Python; no synchronous database calls in request handlers.
-- Never commit secrets or a `.env` file.
+- Never commit secrets.

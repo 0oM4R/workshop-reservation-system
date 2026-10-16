@@ -2,7 +2,7 @@
 
 dev-db:
 	docker compose up -d --wait db
-	cd backend && uv run alembic upgrade head && SEED_DATA=true uv run python -m app.seed
+	cd backend && uv run alembic upgrade head && uv run python -m app.seed
 
 lint:
 	cd backend && uv run ruff check && uv run ruff format --check && uv run pyright

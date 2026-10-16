@@ -1,4 +1,4 @@
-"""Insert the demo workshops when `SEED_DATA=true`; safe to rerun.
+"""Insert the demo workshops; safe to rerun.
 
 Run with `python -m app.seed`.
 """
@@ -48,11 +48,7 @@ async def seed(connection: AsyncConnection) -> int:
 
 
 async def main() -> None:
-    """Seed the application database if `SEED_DATA` is true."""
-    if not settings.seed_data:
-        print("SEED_DATA is not true; skipping the demo workshops.")
-        return
-
+    """Seed the application database."""
     engine = create_async_engine(settings.database_url)
     async with engine.begin() as connection:
         inserted = await seed(connection)
