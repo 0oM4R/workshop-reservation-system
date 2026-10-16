@@ -47,8 +47,8 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 7. Frontend
 
-- [ ] **7.1 API client and types.** Axios instance with base URL `/api`; hand-written response types in one file. Check: `npm run typecheck` passes.
-- [ ] **7.2 `useWorkshops()` composable.** Loads the list with loading and error state. Check: Vitest covers success and failure with Axios mocked.
+- [x] **7.1 API client and types.** Axios instance with base URL `/api`; hand-written response types in one file. Check: `npm run typecheck` passes.
+- [x] **7.2 `useWorkshops()` composable.** Loads the list with loading and error state. Check: Vitest covers success and failure with Axios mocked.
 - [ ] **7.3 Workshop list.** Title, start time and remaining seats, a full state, loading and error states. Check: the seeded workshops show in the dev server.
 - [ ] **7.4 Reserve form.** `UForm` with a Zod schema for name and email; the button is disabled while submitting; clear messages for new, already reserved and full. Check: Vitest covers validation, and all three outcomes show in the browser.
 - [ ] **7.5 Cancel form.** Asks for the email used to reserve; disabled while the request runs; shows the server's message. Check: cancelling from a different browser raises the remaining count.
