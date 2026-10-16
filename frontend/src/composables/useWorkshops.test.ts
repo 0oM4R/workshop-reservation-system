@@ -123,7 +123,7 @@ describe('reserve', () => {
     const { reserve } = useWorkshops()
 
     expect((await reserve(1, values)).message).toBe(
-      'Could not reserve: the server took too long to answer',
+      'The request timed out. Your seat may already be reserved; retry with the same email.',
     )
   })
 
@@ -211,6 +211,37 @@ describe('cancel', () => {
       kind: 'error',
       message: 'Could not cancel: Workshop not found',
     })
+  })
+})
+
+describe('request timeouts', () => {
+  it.each(['ECONNABORTED', 'ETIMEDOUT'])('releases submission state after %s', async (code) => {
+    let rejectRequest: (error: Error) => void = () => {}
+    vi.mocked(api.post).mockImplementation(
+      () => new Promise((_, reject) => (rejectRequest = reject)),
+    )
+    const { submitting, reserve, cancel, bookedEmails } = useWorkshops()
+
+    const reservation = reserve(1, values)
+    expect(submitting.value).toBe(true)
+    rejectRequest(new AxiosError('timeout', code))
+    const reserveOutcome = await reservation
+    expect(submitting.value).toBe(false)
+    expect(reserveOutcome.kind).toBe('error')
+    expect(reserveOutcome.message).toContain('may already be reserved')
+    expect(reserveOutcome.message).toContain('same email')
+    expect(bookedEmails.value).toEqual({})
+
+    bookedEmails.value[1] = values.email
+    const cancellation = cancel(1, values.email)
+    expect(submitting.value).toBe(true)
+    rejectRequest(new AxiosError('timeout', code))
+    const cancelOutcome = await cancellation
+    expect(submitting.value).toBe(false)
+    expect(cancelOutcome.kind).toBe('error')
+    expect(cancelOutcome.message).toContain('may already be cancelled')
+    expect(cancelOutcome.message).toContain('same email')
+    expect(bookedEmails.value[1]).toBe(values.email)
   })
 })
 

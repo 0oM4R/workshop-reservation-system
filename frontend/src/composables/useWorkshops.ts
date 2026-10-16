@@ -34,6 +34,10 @@ function describeFailure(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function isTimeout(error: unknown): boolean {
+  return axios.isAxiosError(error) && ['ECONNABORTED', 'ETIMEDOUT'].includes(error.code ?? '')
+}
+
 /** Workshops with their remaining seats, kept current by the live event stream. */
 export function useWorkshops() {
   const workshops = ref<Workshop[]>([])
@@ -102,6 +106,13 @@ export function useWorkshops() {
       }
       return { kind: 'already', message: 'You already hold a seat in this workshop.' }
     } catch (failure) {
+      if (isTimeout(failure)) {
+        return {
+          kind: 'error',
+          message:
+            'The request timed out. Your seat may already be reserved; retry with the same email.',
+        }
+      }
       if (axios.isAxiosError(failure) && failure.response?.status === HttpStatusCode.Conflict) {
         return { kind: 'full', message: 'Sorry, this workshop is full.' }
       }
@@ -124,6 +135,13 @@ export function useWorkshops() {
       resyncIfStreamDown()
       return { kind: 'cancelled', message: response.data.message }
     } catch (failure) {
+      if (isTimeout(failure)) {
+        return {
+          kind: 'error',
+          message:
+            'The request timed out. Your seat may already be cancelled; retry with the same email.',
+        }
+      }
       return { kind: 'error', message: `Could not cancel: ${describeFailure(failure)}` }
     } finally {
       submitting.value = false
