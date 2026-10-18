@@ -2,7 +2,7 @@
 
 Browse workshops, reserve a seat with a name and email, and cancel a reservation. Available seats update live in every open browser.
 
-Built with FastAPI, PostgreSQL, and Vue 3 + TypeScript. Nuxt UI runs through Vite; Python dependencies use uv and frontend dependencies use npm.
+Built with FastAPI, PostgreSQL, and Vue 3 + TypeScript. Nuxt UI runs through Vite; Python dependencies use uv and frontend dependencies use npm. Search uses LangChain with a local embedding model, so it needs no API key.
 
 ## Run with Docker
 
@@ -12,9 +12,11 @@ With Docker and Compose installed, run from the repository root:
 docker compose up --build
 ```
 
-Open **<http://localhost:8080>**. Compose starts PostgreSQL, applies migrations, seeds 36 demo workshops, and starts the API and nginx frontend. **`migrate exited with code 0` is expected:** its startup work is complete. Only the web service publishes a port.
+Open **<http://localhost:8080>**. Compose starts PostgreSQL, applies migrations, seeds 36 demo workshops, and starts the API and nginx frontend. The first build downloads the search model into the API image, so it takes a few minutes. **`migrate exited with code 0` is expected:** its startup work is complete. Only the web service publishes a port.
 
 Try reserving the single seat in **Knife Skills**, then cancel with the same email. Open another browser window to see the count change.
+
+Search is API-only for now: `curl "http://localhost:8080/api/workshops/search?q=sourdough"` returns matching ids, best first, fusing keyword and semantic ranking. Add `&mode=keyword` or `&mode=semantic` to see one alone; semantic ranks by meaning instead of shared words, e.g. `q=how+to+make+my+team+ship+faster`.
 
 Stop with Ctrl+C, then `docker compose down`. Data stays in the named volume. **`docker compose down --volumes` deletes all database data.**
 
@@ -48,7 +50,7 @@ Run these from the repository root:
 | `make lint`                           | Run Python and frontend lint, formatting, and type checks       |
 | `make test`                           | Run pytest against PostgreSQL, then Vitest; needs `make dev-db` |
 | `docker compose up --build`           | Build and run the full stack on port 8080                       |
-| `(cd backend && uv run pytest smoke)` | Test SSE through nginx; needs the full stack running            |
+| `(cd backend && uv run pytest smoke)` | Test SSE and search through nginx; needs the full stack running |
 
 Backend tests rebuild and truncate the database at `TEST_DATABASE_URL` (default: `workshops_test`). **Never point it at data you want to keep.**
 

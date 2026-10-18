@@ -73,3 +73,8 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 ## 11. Search
 
 - [x] **11.1 Workshop descriptions.** Migration adding `description`; seed holds 30+ workshops across topics, levels and formats and fills descriptions of existing slugs. Check: reseeding changes nothing; a pre-description workshop gets one, seats untouched.
+- [x] **11.2 Keyword search.** BM25 over title and description, built in memory at API startup; stop words dropped, words stemmed, workshops without shared query terms left out. Check: tests rank known workshops and return nothing for an unknown word.
+- [x] **11.3 `GET /api/workshops/search`.** `q` trimmed, 1–200 characters; returns at most 10 ids, best first. Check: tests for ranking and each 422.
+- [x] **11.4 Semantic search.** Workshops embedded at API startup with a local model into an in-memory vector store; `mode=semantic` returns the closest 10 by cosine similarity. Check: tests rank known workshops with fake embeddings, and an unknown mode returns 422.
+- [x] **11.5 Model in the image.** The API image downloads the embedding model at build time and runs offline. Check: `docker compose up --build` starts, and a semantic search through nginx returns ids.
+- [x] **11.6 Hybrid search.** `mode=hybrid`, the new default, fuses keyword and semantic ranks by reciprocal rank fusion (offset 60) and returns the top 10. Check: tests for the fusion arithmetic, tie order, hybrid ranking, the default mode, and stop-word-only workshops.
