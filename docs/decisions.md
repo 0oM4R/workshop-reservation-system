@@ -48,7 +48,7 @@ Notifications are best effort. A failed database listener reconnects and closes 
 
 ### API framework
 
-FastAPI's async model suits long-lived SSE connections, and type hints support validation and API documentation. Django's broader feature set adds little to this small API; Flask's synchronous request model is a less natural fit for long-lived streams. I preferred FastAPI's ecosystem and examples over Litestar's.
+I chose FastAPI because it is simple and fits this small API. Django's additional features are not needed for the current scope.
 
 ### Data access
 
