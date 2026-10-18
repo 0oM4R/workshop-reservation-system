@@ -10,7 +10,7 @@ export default defineConfig({
     ui({
       router: false,
       ui: {
-        colors: { primary: 'emerald', neutral: 'olive' },
+        colors: { primary: 'sky', neutral: 'slate' },
         button: { slots: { base: 'rounded-full' }, defaultVariants: { size: 'lg' } },
         input: { defaultVariants: { size: 'lg' } },
       },

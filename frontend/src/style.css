@@ -10,12 +10,12 @@
 :root {
   --ui-radius: 0.5rem;
   --ui-primary: var(--ui-color-primary-700);
-  --paper: oklch(95.5% 0.02 140);
+  --paper: oklch(97% 0.012 235);
 }
 
 .dark {
   --ui-primary: var(--ui-color-primary-400);
-  --paper: oklch(16% 0.01 107);
+  --paper: oklch(20% 0.02 250);
 }
 
 body {

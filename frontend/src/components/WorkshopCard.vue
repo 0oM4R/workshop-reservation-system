@@ -101,7 +101,7 @@ function onCancelled(outcome: CancelOutcome) {
           class="size-3.5 rounded-full motion-safe:transition-colors motion-safe:duration-700"
           :class="
             seat <= workshop.remaining
-              ? 'bg-amber-400 dark:bg-amber-300'
+              ? 'bg-primary'
               : 'ring-2 ring-(--ui-border-accented) ring-inset'
           "
         />
@@ -110,7 +110,7 @@ function onCancelled(outcome: CancelOutcome) {
         v-else
         :model-value="workshop.remaining"
         :max="workshop.capacity"
-        color="warning"
+        color="primary"
         aria-hidden="true"
       />
       <p class="mt-2 text-sm font-medium" :class="isFull ? 'text-muted' : 'text-default'">
