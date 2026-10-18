@@ -1,4 +1,4 @@
-.PHONY: dev-db dev-api dev-web lint test
+.PHONY: dev-db dev-api dev-web lint test evaluate
 
 dev-db:
 	docker compose -f compose.yaml -f compose.dev.yaml up -d --wait db
@@ -19,3 +19,7 @@ lint:
 test:
 	cd backend && uv run pytest
 	cd frontend && npm run test
+
+evaluate:
+	bash -o pipefail -c 'docker compose --ansi never --progress quiet run --build --rm --no-deps -T \
+		api python -u -m app.search.evaluate 2>&1 | tee eval-results.txt'

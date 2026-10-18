@@ -212,6 +212,11 @@ class SearchIndex:
         return workshop_ids_of(matching_documents)
 
 
+def load_embeddings() -> Embeddings:
+    """Load the embedding model bundled in the API image."""
+    return FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
+
+
 async def load_search_index() -> SearchIndex:
     """Load every workshop's text and index it."""
     async with session_factory() as session:
@@ -221,8 +226,7 @@ async def load_search_index() -> SearchIndex:
     for row in rows:
         search_documents.append(SearchDocument(row.id, row.title, row.description))
 
-    embeddings = FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
-    return SearchIndex(search_documents, embeddings)
+    return SearchIndex(search_documents, load_embeddings())
 
 
 def get_search_index(request: Request) -> SearchIndex:
