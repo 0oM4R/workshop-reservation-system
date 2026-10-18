@@ -7,7 +7,7 @@ import type { ReserveValues } from '../schemas'
 import CancelForm from './CancelForm.vue'
 import ReserveForm from './ReserveForm.vue'
 
-const MAX_SEAT_DOTS = 20
+const MAX_SEAT_DOTS = 15
 
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: 'short' })
 const dayAndTimeFormat = new Intl.DateTimeFormat(undefined, {
@@ -40,7 +40,6 @@ const cancelOpen = ref(false)
 
 const startsAt = computed(() => new Date(props.workshop.starts_at))
 const isFull = computed(() => props.workshop.remaining === 0)
-const takenSeats = computed(() => props.workshop.capacity - props.workshop.remaining)
 const seatsLabel = computed(() =>
   isFull.value ? 'Full' : `${props.workshop.remaining} of ${props.workshop.capacity} seats left`,
 )
@@ -97,7 +96,9 @@ function onCancelled(outcome: CancelOutcome) {
           :key="seat"
           class="size-3.5 rounded-full motion-safe:transition-colors motion-safe:duration-700"
           :class="
-            seat <= takenSeats ? 'bg-(--ui-border-accented)' : 'bg-amber-400 dark:bg-amber-300'
+            seat <= workshop.remaining
+              ? 'bg-amber-400 dark:bg-amber-300'
+              : 'ring-2 ring-(--ui-border-accented) ring-inset'
           "
         />
       </div>
