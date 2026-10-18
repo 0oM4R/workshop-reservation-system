@@ -64,11 +64,11 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 
 ## 9. CI
 
-- [ ] **9.1 GitHub Actions.** On every pull request and push to `development`: `make lint`, backend tests with a Postgres service container, frontend tests, and the full stack started with the SSE smoke test. Check: all jobs pass on a pull request.
+- [x] **9.1 GitHub Actions.** On every pull request and push to `development`: `make lint`, backend tests with a Postgres service container, frontend tests, and the full stack started with the SSE smoke test. Check: all jobs pass on a pull request.
 
 ## 10. Documentation
 
-- [ ] **10.1 README.** What the app does, `docker compose up` and the URL, the dev loop, the make targets, how capacity, duplicates and live updates are handled, the scaling path, the known weakness that anyone who knows an email can reserve or cancel with it (fixed in production by an emailed confirmation link or logins, plus rate limiting), and a note that `migrate exited with code 0` is expected. Check: someone new can start the stack from the README alone.
+- [x] **10.1 README.** What the app does, `docker compose up` and the URL, the dev loop, the make targets, how capacity, duplicates and live updates are handled, the scaling path, the known weakness that anyone who knows an email can reserve or cancel with it (fixed in production by an emailed confirmation link or logins, plus rate limiting), and a note that `migrate exited with code 0` is expected. Check: someone new can start the stack from the README alone.
 
 ## 11. Search
 
@@ -80,4 +80,4 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 - [x] **11.6 Hybrid search.** `mode=hybrid`, the new default, fuses keyword and semantic ranks by reciprocal rank fusion (offset 60) and returns the top 10. Check: tests for the fusion arithmetic, tie order, hybrid ranking, the default mode, and stop-word-only workshops.
 - [x] **11.7 Search evaluation.** At least 15 labeled queries comparing keyword, semantic and hybrid relevance, with a single documented Docker command. Check: the README command reports per-query results, Hit@3 and MRR@10 for all modes; metric and label tests, `make lint` and `make test` pass.
 - [x] **11.8 Search UI.** A search box with a mode switch; results in rank order with live seat counts. Check: Vitest covers the typing delay, latest response wins, clearing, failure, unknown ids and ordering.
-- [ ] **11.9 Reranking.** `mode=rerank` reorders hybrid's top 10 with a local cross-encoder (`Xenova/ms-marco-MiniLM-L-6-v2`, baked into the API image); the UI offers it as "Hybrid + rerank". Check: tests for score order, ties, reranking only reordering hybrid's results, and the endpoint; `make evaluate` reports a rerank row to compare with hybrid; `make lint` and `make test` pass; a rerank search through nginx returns ids.
+- [x] **11.9 Reranking.** `mode=rerank` reorders hybrid's top 10 with a local cross-encoder (`Xenova/ms-marco-MiniLM-L-6-v2`, baked into the API image); the UI offers it as "Hybrid + rerank". Check: tests for score order, ties, reranking only reordering hybrid's results, and the endpoint; `make evaluate` reports a rerank row to compare with hybrid; `make lint` and `make test` pass; a rerank search through nginx returns ids.

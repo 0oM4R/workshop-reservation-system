@@ -36,7 +36,7 @@ From the repository root, with Docker and Make installed, run:
 make evaluate
 ```
 
-Output is shown in the terminal and saved to `eval-results.txt` in the repository root, overwriting the previous report. Evaluation failures still make the command fail.
+Output is shown in the terminal and saved to `eval-results.txt` in the repository root, overwriting the previous report. This generated report is ignored by Git. Evaluation failures still make the command fail.
 
 Without Make, use the equivalent command (requires Bash):
 
@@ -45,9 +45,18 @@ bash -o pipefail -c 'docker compose --ansi never --progress quiet run --build --
   api python -u -m app.search.evaluate 2>&1 | tee eval-results.txt'
 ```
 
-The [evaluation script](backend/app/search/evaluate.py) runs hand-labeled queries against the demo catalog with the real search implementation and models. For keyword, semantic, hybrid and reranked search it prints each query's top three workshops, then a summary table. An onnxruntime telemetry warning before the report is harmless.
+The [evaluation script](backend/app/search/evaluate.py) runs hand-labeled queries against the demo catalog with the real search implementation and models. For keyword, semantic, hybrid and reranked search it prints each query's top three workshops, then a summary table.
 
 **Hit@3** is the share of queries with the intended workshop in the first three results. **MRR@10** is the mean reciprocal rank of the intended workshop in the first ten results, zero when absent. Higher is better, up to 100% and 1.
+
+Recorded results from 2026-10-18, using 20 queries and 36 demo workshops:
+
+| Mode            |  Hit@3 | MRR@10 |
+| --------------- | -----: | -----: |
+| Keyword         |  80.0% |  0.800 |
+| Semantic        | 100.0% |  0.925 |
+| Hybrid          |  90.0% |  0.867 |
+| Hybrid + rerank | 100.0% |  1.000 |
 
 Queries mix exact titles, specific skills, natural-language requests, and requests whose words also appear in other workshops; each has one intended workshop. This is a small, subjective relevance check, not a benchmark: it ignores other relevant workshops, latency and no-match behavior, and has no pass/fail threshold. Only errors exit nonzero.
 
