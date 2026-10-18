@@ -19,6 +19,13 @@ class WorkshopOut(BaseModel):
     remaining: int
 
 
+SEARCH_QUERY_MAX_LENGTH = 200
+SearchQuery = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=SEARCH_QUERY_MAX_LENGTH
+    ),
+]
 NAME_MAX_LENGTH = 100
 
 

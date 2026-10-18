@@ -7,6 +7,7 @@ dependencies = [
     "asyncpg>=0.32.0",
     "email-validator>=2.3.0",
     "fastapi>=0.143.1",
+    "langchain-core>=1.6.12",
     "pydantic-settings>=2.16.0",
     "sqlalchemy[asyncio]>=2.1.4",
     "sse-starlette>=3.5.0",
