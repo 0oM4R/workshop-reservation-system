@@ -7,8 +7,11 @@ dependencies = [
     "asyncpg>=0.32.0",
     "email-validator>=2.3.0",
     "fastapi>=0.143.1",
+    "langchain-community>=0.4.2",
     "langchain-core>=1.6.12",
+    "py-rust-stemmers>=0.1.8",
     "pydantic-settings>=2.16.0",
+    "rank-bm25>=0.2.2",
     "sqlalchemy[asyncio]>=2.1.4",
     "sse-starlette>=3.5.0",
     "uvicorn>=0.54.0",
@@ -40,3 +43,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+filterwarnings = [
+    # BM25Retriever lives only in sunset langchain-community; uv.lock pins it.
+    "ignore:`langchain-community` is being sunset:DeprecationWarning",
+]
