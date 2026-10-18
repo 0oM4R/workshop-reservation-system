@@ -5,6 +5,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
+from fastapi import Request
+from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
@@ -12,6 +14,11 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import InMemoryVectorStore, VectorStoreRetriever
 from py_rust_stemmers import SnowballStemmer
 
+from app.db import session_factory
+from app.services import workshops
+
+# Must match backend/Dockerfile, which downloads it at build time.
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 RESULT_LIMIT = 10
 # The usual reciprocal rank fusion offset: it keeps one list's first place
 # from outweighing a workshop that ranks well in both lists.
@@ -166,8 +173,58 @@ class SearchIndex:
         self, documents: Sequence[SearchDocument], embeddings: Embeddings
     ) -> None:
         """Build both retrievers; blocks while embedding."""
-        raise NotImplementedError
+        retriever_documents: list[Document] = []
+        for workshop in documents:
+            retriever_documents.append(workshop.as_document())
+
+        self._keyword_retriever = build_keyword_retriever(retriever_documents)
+        self._semantic_retriever = build_semantic_retriever(
+            retriever_documents, embeddings
+        )
 
     async def search(self, query: str, mode: SearchMode) -> list[int]:
         """Return matching workshop IDs, best first."""
-        raise NotImplementedError
+        if mode == SearchMode.KEYWORD:
+            return await self._search_keyword(query)
+
+        if mode == SearchMode.SEMANTIC:
+            return await self._search_semantic(query)
+
+        # Hybrid: both rankings, fused.
+        keyword_ids = await self._search_keyword(query)
+        semantic_ids = await self._search_semantic(query)
+        hybrid_ids = fuse_by_reciprocal_rank(
+            keyword_ids=keyword_ids, semantic_ids=semantic_ids
+        )
+        return hybrid_ids[:RESULT_LIMIT]
+
+    async def _search_keyword(self, query: str) -> list[int]:
+        """Return IDs of workshops sharing a word with the query, best first."""
+        if self._keyword_retriever is None:
+            return []
+
+        matching_documents = await self._keyword_retriever.ainvoke(query)
+        return workshop_ids_of(matching_documents)
+
+    async def _search_semantic(self, query: str) -> list[int]:
+        """Return IDs of the workshops closest in meaning, best first."""
+        matching_documents = await self._semantic_retriever.ainvoke(query)
+        return workshop_ids_of(matching_documents)
+
+
+async def load_search_index() -> SearchIndex:
+    """Load every workshop's text and index it."""
+    async with session_factory() as session:
+        rows = await workshops.list_workshops(session)
+
+    search_documents: list[SearchDocument] = []
+    for row in rows:
+        search_documents.append(SearchDocument(row.id, row.title, row.description))
+
+    embeddings = FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
+    return SearchIndex(search_documents, embeddings)
+
+
+def get_search_index(request: Request) -> SearchIndex:
+    """Return the index built at startup."""
+    return request.state.search_index

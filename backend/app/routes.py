@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator, Sequence
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Response, status
+from fastapi import APIRouter, Depends, Path, Query, Response, status
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
 from app.db import SessionDep
@@ -13,13 +13,16 @@ from app.schemas import (
     CancelOut,
     ReservationOut,
     ReserveIn,
+    SearchQuery,
     WorkshopOut,
 )
+from app.search.index import SearchIndex, SearchMode, get_search_index
 from app.services import reservations, workshops
 
 router = APIRouter(prefix="/workshops")
 events_router = APIRouter()
 BroadcasterDep = Annotated[Broadcaster, Depends(get_broadcaster)]
+SearchIndexDep = Annotated[SearchIndex, Depends(get_search_index)]
 POSTGRES_INTEGER_MAX = 2_147_483_647
 PING_INTERVAL_SECONDS = 15
 # A send blocked this long means the client stopped reading; TCP alone never
@@ -33,6 +36,16 @@ CANCEL_MESSAGE = "If this email held a seat, it has been cancelled."
 async def list_workshops(session: SessionDep) -> Sequence[workshops.WorkshopRow]:
     """List workshops by start time with the seats left in each."""
     return await workshops.list_workshops(session)
+
+
+@router.get("/search")
+async def search_workshops(
+    q: Annotated[SearchQuery, Query()],
+    search_index: SearchIndexDep,
+    mode: Annotated[SearchMode, Query()] = SearchMode.HYBRID,
+) -> list[int]:
+    """Return ids of workshops matching `q`, best first, ranked by `mode`."""
+    return await search_index.search(q, mode)
 
 
 @router.post(

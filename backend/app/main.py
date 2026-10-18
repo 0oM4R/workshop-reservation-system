@@ -10,6 +10,7 @@ from app.db import engine
 from app.events import get_broadcaster
 from app.routes import events_router
 from app.routes import router as workshops_router
+from app.search.index import SearchIndex, load_search_index
 from app.services.reservations import ReservationBusy, WorkshopFull, WorkshopNotFound
 
 api = APIRouter(prefix="/api")
@@ -24,12 +25,13 @@ async def health() -> dict[str, str]:
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
-    """Run the broadcaster while the app is up; close the pool on shutdown."""
+async def lifespan(_app: FastAPI) -> AsyncGenerator[dict[str, SearchIndex]]:
+    """Build the search index and run the broadcaster; close the pool on shutdown."""
     broadcaster = get_broadcaster()
-    await broadcaster.start()
     try:
-        yield
+        search_index = await load_search_index()
+        await broadcaster.start()
+        yield {"search_index": search_index}
     finally:
         await broadcaster.stop()
         await engine.dispose()
