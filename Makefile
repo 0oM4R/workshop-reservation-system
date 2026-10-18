@@ -1,4 +1,8 @@
-.PHONY: dev-db dev-api dev-web lint test evaluate
+.PHONY: deps dev-db dev-api dev-web lint test evaluate
+
+deps:
+	cd backend && uv sync --locked
+	cd frontend && npm ci
 
 dev-db:
 	docker compose -f compose.yaml -f compose.dev.yaml up -d --wait db

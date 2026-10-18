@@ -25,12 +25,13 @@ These hold under any load and drive most of the design below.
 - `frontend/`: the Vue app and the nginx config for the `web` image
 - `compose.yaml`: `db`, `migrate` (runs migrations and the seed script, then exits 0), `api`, and `web` (nginx serving the built frontend and proxying `/api/*` to `api`). Only `web` publishes a port.
 - `compose.dev.yaml`: adds the published Postgres port for `make dev-db`; not part of the full stack
-- `Makefile`: `dev-db`, `dev-api`, `dev-web`, `lint`, `test`, `evaluate`
+- `Makefile`: `deps`, `dev-db`, `dev-api`, `dev-web`, `lint`, `test`, `evaluate`
 - `.github/workflows/ci.yml`: lint, backend and frontend tests, and a Compose stack start plus the SSE and search smoke tests, on every pull request and every push to `development`
 
 ## Commands
 
 ```sh
+make deps                                            # uv sync --locked and npm ci, from the lockfiles
 make dev-db                                          # Postgres in Docker, migrated and seeded; also creates workshops_test
 make dev-api                                         # dev-db, then the API on :8000 with reload
 make dev-web                                         # Vite dev server; proxies /api to :8000

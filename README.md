@@ -56,8 +56,7 @@ Queries cover titles, skills, natural-language requests, and overlapping topics,
 Install Docker, uv, Node.js 22 (used in CI), npm, and Make. uv selects Python from [backend/.python-version](backend/.python-version).
 
 ```sh
-(cd backend && uv sync --locked)
-(cd frontend && npm ci)
+make deps
 make dev-api
 ```
 
@@ -75,6 +74,7 @@ Run these from the repository root:
 
 | Command                               | Purpose                                                         |
 | ------------------------------------- | --------------------------------------------------------------- |
+| `make deps`                           | Install backend and frontend dependencies from the lockfiles    |
 | `make dev-db`                         | Start the development database, migrate, and seed               |
 | `make dev-api`                        | Run `dev-db`, then start the API with reload                    |
 | `make dev-web`                        | Start Vite                                                      |
