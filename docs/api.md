@@ -28,6 +28,7 @@ JSON request bodies require `Content-Type: application/json`. There is currently
 {
   "id": 1,
   "title": "Intro to Pottery",
+  "description": "A beginner studio session at the potter's wheel. …",
   "starts_at": "2026-10-19T10:00:00Z",
   "capacity": 8,
   "remaining": 8

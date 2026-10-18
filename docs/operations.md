@@ -34,7 +34,7 @@ docker compose logs --tail=100 migrate api db web
 curl --fail http://localhost:8080/api/workshops
 ```
 
-`docker compose down` retains the named `db-data` volume. **Adding `--volumes` deletes the database and all reservations.** Normal restarts and reseeding need no reset. The seed skips existing slugs, preserving their dates and capacities; it does not refresh old demo dates.
+`docker compose down` retains the named `db-data` volume. **Adding `--volumes` deletes the database and all reservations.** Normal restarts and reseeding need no reset. For existing slugs the seed updates only the description; old dates, capacities and seat counts stay.
 
 The Postgres init script creates `workshops_test` only on first volume initialization. If that database is missing, create it while `db` is running:
 

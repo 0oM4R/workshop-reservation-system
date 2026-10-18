@@ -69,3 +69,7 @@ Work top to bottom. Each task fits in one commit and ends with a check; tick the
 ## 10. Documentation
 
 - [ ] **10.1 README.** What the app does, `docker compose up` and the URL, the dev loop, the make targets, how capacity, duplicates and live updates are handled, the scaling path, the known weakness that anyone who knows an email can reserve or cancel with it (fixed in production by an emailed confirmation link or logins, plus rate limiting), and a note that `migrate exited with code 0` is expected. Check: someone new can start the stack from the README alone.
+
+## 11. Search
+
+- [x] **11.1 Workshop descriptions.** Migration adding `description`; seed holds 30+ workshops across topics, levels and formats and fills descriptions of existing slugs. Check: reseeding changes nothing; a pre-description workshop gets one, seats untouched.

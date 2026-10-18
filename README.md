@@ -12,7 +12,7 @@ With Docker and Compose installed, run from the repository root:
 docker compose up --build
 ```
 
-Open **<http://localhost:8080>**. Compose starts PostgreSQL, applies migrations, seeds six demo workshops, and starts the API and nginx frontend. **`migrate exited with code 0` is expected:** its startup work is complete. Only the web service publishes a port.
+Open **<http://localhost:8080>**. Compose starts PostgreSQL, applies migrations, seeds 36 demo workshops, and starts the API and nginx frontend. **`migrate exited with code 0` is expected:** its startup work is complete. Only the web service publishes a port.
 
 Try reserving the single seat in **Knife Skills**, then cancel with the same email. Open another browser window to see the count change.
 

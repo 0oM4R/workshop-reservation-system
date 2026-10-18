@@ -102,7 +102,7 @@ Reserving is one transaction, in this order:
 ## Database and migrations
 
 - Never edit a merged migration; add a new one. Autogenerate can miss CHECK constraints and expression or partial indexes, so review every generated file.
-- Migrations hold the schema and required reference data. Demo data lives in the seed script (`python -m app.seed`), which `make dev-db` and the `migrate` service always run, and is safe to rerun (`ON CONFLICT DO NOTHING` on a fixed slug).
+- Migrations hold the schema and required reference data. Demo data lives in the seed script (`python -m app.seed`), which `make dev-db` and the `migrate` service always run, and is safe to rerun (upsert on a fixed slug; only the description changes).
 
 ## Testing
 

@@ -32,6 +32,13 @@ async def test_lists_workshops_by_start_time_with_remaining(
     assert response.status_code == 200
     body = response.json()
     assert [workshop["id"] for workshop in body] == [sooner, later]
-    assert set(body[0]) == {"id", "title", "starts_at", "capacity", "remaining"}
+    assert set(body[0]) == {
+        "id",
+        "title",
+        "description",
+        "starts_at",
+        "capacity",
+        "remaining",
+    }
     assert body[0]["remaining"] == 7
     assert body[1]["remaining"] == 4

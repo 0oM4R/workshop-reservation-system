@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Workshop
 
-# Columns: id, title, starts_at, capacity, remaining.
-WorkshopRow = Row[int, str, datetime, int, int]
+# Columns: id, title, description, starts_at, capacity, remaining.
+WorkshopRow = Row[int, str, str, datetime, int, int]
 
 
 async def list_workshops(session: AsyncSession) -> Sequence[WorkshopRow]:
@@ -17,6 +17,7 @@ async def list_workshops(session: AsyncSession) -> Sequence[WorkshopRow]:
     statement = select(
         Workshop.id,
         Workshop.title,
+        Workshop.description,
         Workshop.starts_at,
         Workshop.capacity,
         (Workshop.capacity - Workshop.reserved).label("remaining"),
