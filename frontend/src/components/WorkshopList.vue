@@ -6,16 +6,20 @@ import WorkshopCard from './WorkshopCard.vue'
 
 const PLACEHOLDER_CARDS = 3
 
-defineProps<{
-  workshops: Workshop[]
-  loading: boolean
-  error: string | null
-  stale: boolean
-  busy: boolean
-  bookedEmails: Record<number, string>
-  reserve: (workshopId: number, values: ReserveValues) => Promise<ReserveOutcome>
-  cancel: (workshopId: number, email: string) => Promise<CancelOutcome>
-}>()
+withDefaults(
+  defineProps<{
+    workshops: Workshop[]
+    loading: boolean
+    error: string | null
+    stale: boolean
+    busy: boolean
+    bookedEmails: Record<number, string>
+    reserve: (workshopId: number, values: ReserveValues) => Promise<ReserveOutcome>
+    cancel: (workshopId: number, email: string) => Promise<CancelOutcome>
+    emptyMessage?: string
+  }>(),
+  { emptyMessage: 'No workshops are scheduled yet. Check back soon.' },
+)
 </script>
 
 <template>
@@ -31,9 +35,9 @@ defineProps<{
       </p>
     </div>
     <p v-if="!loading && !error && workshops.length === 0" class="text-lg text-toned">
-      No workshops are scheduled yet. Check back soon.
+      {{ emptyMessage }}
     </p>
-    <div class="grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       <template v-if="loading && workshops.length === 0">
         <USkeleton
           v-for="placeholder in PLACEHOLDER_CARDS"

@@ -16,7 +16,7 @@ Open **<http://localhost:8080>**. Compose starts PostgreSQL, applies migrations,
 
 Try reserving the single seat in **Knife Skills**, then cancel with the same email. Open another browser window to see the count change.
 
-Search is API-only for now: `curl "http://localhost:8080/api/workshops/search?q=sourdough"` returns matching ids, best first, fusing keyword and semantic ranking. Add `&mode=keyword` or `&mode=semantic` to see one alone; semantic ranks by meaning instead of shared words, e.g. `q=how+to+make+my+team+ship+faster`.
+Search above the list, for example "how to make my team ship faster", and switch between hybrid, keyword and semantic ranking. Results keep their live seat counts. The search API is described in [API](docs/api.md).
 
 Stop with Ctrl+C, then `docker compose down`. Data stays in the named volume. **`docker compose down --volumes` deletes all database data.**
 

@@ -64,7 +64,7 @@ function onCancelled(outcome: CancelOutcome) {
 
 <template>
   <article
-    class="rounded-[1.25rem] bg-default p-5 shadow-[0_3px_0_var(--ui-border-accented)] ring-1 ring-default sm:p-6"
+    class="flex flex-col rounded-[1.25rem] bg-default p-5 shadow-[0_3px_0_var(--ui-border-accented)] ring-1 ring-default sm:p-6"
   >
     <div class="flex items-start gap-4">
       <time
@@ -84,6 +84,10 @@ function onCancelled(outcome: CancelOutcome) {
         <p class="mt-0.5 text-sm text-toned">{{ dayAndTimeFormat.format(startsAt) }}</p>
       </div>
     </div>
+
+    <p class="mt-4 line-clamp-3 text-sm text-default" :title="workshop.description">
+      {{ workshop.description }}
+    </p>
 
     <div class="mt-5">
       <div
@@ -114,7 +118,7 @@ function onCancelled(outcome: CancelOutcome) {
       </p>
     </div>
 
-    <div class="mt-5 flex flex-wrap items-center gap-2">
+    <div class="mt-auto flex flex-wrap items-center gap-2 pt-5">
       <UBadge v-if="bookedEmail" color="primary" variant="soft" size="xl" class="rounded-full px-4">
         You're booked
       </UBadge>

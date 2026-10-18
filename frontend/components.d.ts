@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     CancelForm: typeof import('./src/components/CancelForm.vue')['default']
     ReserveForm: typeof import('./src/components/ReserveForm.vue')['default']
+    SearchBar: typeof import('./src/components/SearchBar.vue')['default']
     UAlert: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Alert.vue')['default']
     UApp: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/App.vue')['default']
     UBadge: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Badge.vue')['default']
@@ -23,6 +24,8 @@ declare module 'vue' {
     UInput: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Input.vue')['default']
     UModal: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Modal.vue')['default']
     UProgress: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Progress.vue')['default']
+    URadioGroup: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/RadioGroup.vue')['default']
+    USelect: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Select.vue')['default']
     USkeleton: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Skeleton.vue')['default']
     WorkshopCard: typeof import('./src/components/WorkshopCard.vue')['default']
     WorkshopList: typeof import('./src/components/WorkshopList.vue')['default']

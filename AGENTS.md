@@ -128,6 +128,7 @@ Reserving is one transaction, in this order:
 - `remaining` changes only from a list load or a stream event, never from a reserve response: the stream delivers changes in commit order, and a response can arrive after a newer event. While the stream is down, a successful reserve or cancel reloads the list instead. A list load applies again the events that arrived while it was in flight, since those may be newer.
 - Disable Reserve and Cancel while a request is in flight; requests time out after 10 s so a hung one can't keep them disabled.
 - "You're booked" only knows this tab's bookings, so it never hides Reserve.
+- Search state lives in `useSearch()`: it waits for a pause in typing, keeps only the latest response, and maps the ranked ids onto the live list from `useWorkshops()`, so results keep live seat counts.
 - Forms use Nuxt UI's `UForm` with a Zod schema. API response types are hand-written in one file.
 
 ## Conventions

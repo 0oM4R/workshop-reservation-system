@@ -38,6 +38,7 @@ beforeEach(() => {
   pottery = {
     id: 1,
     title: 'Pottery',
+    description: 'Throw a bowl on the wheel.',
     starts_at: '2026-11-01T10:00:00Z',
     capacity: 8,
     remaining: 8,

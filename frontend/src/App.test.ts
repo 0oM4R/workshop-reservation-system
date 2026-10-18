@@ -11,6 +11,7 @@ vi.mock('./api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 const workshop = (id: number, title: string, remaining: number) => ({
   id,
   title,
+  description: `About ${title}.`,
   starts_at: '2026-11-01T10:00:00Z',
   capacity: 5,
   remaining,
@@ -54,8 +55,40 @@ describe('App', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Pottery')
+    expect(wrapper.text()).toContain('About Pottery.')
     expect(wrapper.text()).toContain('3 of 5 seats left')
     expect(wrapper.text()).toContain('Full')
+    expect(wrapper.find<HTMLInputElement>('input[type="search"]').element.maxLength).toBe(200)
+  })
+
+  it('shows the workshops a search ranks, best first', async () => {
+    const workshops = [workshop(1, 'Pottery', 3), workshop(2, 'Knife Skills', 1)]
+    vi.mocked(api.get).mockImplementation(async (url) => ({
+      data: url === '/workshops/search' ? [2] : workshops,
+    }))
+    const wrapper = mount(App, { global: { plugins: [ui] } })
+    FakeEventSource.last.onopen?.()
+    await flushPromises()
+
+    await wrapper.find('input[type="search"]').setValue('cutting vegetables')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('1 workshop, best match first'))
+
+    expect(wrapper.text()).toContain('Knife Skills')
+    expect(wrapper.text()).not.toContain('Pottery')
+  })
+
+  it('says so when no workshop matches the search', async () => {
+    vi.mocked(api.get).mockImplementation(async (url) => ({
+      data: url === '/workshops/search' ? [] : [workshop(1, 'Pottery', 3)],
+    }))
+    const wrapper = mount(App, { global: { plugins: [ui] } })
+    FakeEventSource.last.onopen?.()
+    await flushPromises()
+
+    await wrapper.find('input[type="search"]').setValue('kubernetes')
+
+    await vi.waitFor(() => expect(wrapper.text()).toContain('No workshops match your search.'))
+    expect(wrapper.text()).not.toContain('Pottery')
   })
 
   it('updates the seats shown when an event arrives', async () => {
