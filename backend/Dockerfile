@@ -11,10 +11,12 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PATH="/app/.venv/bin:$PATH" \
 COPY --chmod=644 pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev
 
-# Bake in the embedding model so containers never download it. Must match
-# EMBEDDING_MODEL in app/search/index.py; HF_HUB_OFFLINE fails startup on mismatch.
+# Bake in the embedding and reranking models so containers never download them.
+# Must match EMBEDDING_MODEL and RERANK_MODEL in app/search/index.py;
+# HF_HUB_OFFLINE fails startup on a mismatch.
 # The download leaves some cache files readable by root only.
 RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5')" \
+    && python -c "from fastembed.rerank.cross_encoder import TextCrossEncoder; TextCrossEncoder('Xenova/ms-marco-MiniLM-L-6-v2')" \
     && chmod -R a+rX /app/models
 ENV HF_HUB_OFFLINE=1
 

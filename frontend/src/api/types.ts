@@ -27,5 +27,8 @@ export interface SeatsChanged {
   remaining: number
 }
 
-/** How `GET /api/workshops/search` ranks: by shared words, by meaning, or both combined. */
-export type SearchMode = 'hybrid' | 'keyword' | 'semantic'
+/**
+ * How `GET /api/workshops/search` ranks: by shared words, by meaning, both combined, or both
+ * combined and then reordered by a reranking model.
+ */
+export type SearchMode = 'hybrid' | 'rerank' | 'keyword' | 'semantic'

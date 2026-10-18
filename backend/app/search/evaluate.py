@@ -1,4 +1,4 @@
-"""Evaluate search relevance on the demo catalog with the bundled model.
+"""Evaluate search relevance on the demo catalog with the bundled models.
 
 Run with `python -m app.search.evaluate` inside the API image.
 """
@@ -7,10 +7,12 @@ import asyncio
 
 from app.search.index import (
     EMBEDDING_MODEL,
+    RERANK_MODEL,
     SearchDocument,
     SearchIndex,
     SearchMode,
     load_embeddings,
+    load_reranker,
 )
 from app.seed import DEMO_WORKSHOPS
 
@@ -113,9 +115,10 @@ async def main() -> None:
 
     print("\nSEARCH EVALUATION")
     print(f"Queries: {len(QUERIES)} | Workshops: {len(documents)}")
-    print(f"Model: {EMBEDDING_MODEL}")
-    print("Loading model and building index...", flush=True)
-    search_index = SearchIndex(documents, load_embeddings())
+    print(f"Embedding model: {EMBEDDING_MODEL}")
+    print(f"Reranking model: {RERANK_MODEL}")
+    print("Loading models and building index...", flush=True)
+    search_index = SearchIndex(documents, load_embeddings(), load_reranker())
     print("Hit@3: was the expected workshop in the first three results?")
     print("RR@10: 1 divided by its rank; 0 if absent from the first ten results.")
     summaries: list[tuple[str, float, float]] = []

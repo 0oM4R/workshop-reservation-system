@@ -43,10 +43,11 @@ IDs, dates, and remaining counts depend on your database. There is no pagination
 `GET /api/workshops/search?q=…&mode=…` ranks workshops by title and description and returns up to 10 ids, best first, e.g. `[12, 3]`. Rows and seat counts come from `/api/workshops`.
 
 - `q` is trimmed, then must be 1–200 characters, else 422.
-- `mode` is `hybrid` (default), `keyword` or `semantic`, else 422.
+- `mode` is `hybrid` (default), `rerank`, `keyword` or `semantic`, else 422.
   - `keyword` ranks by BM25. Workshops sharing no word with `q` are left out, so `[]` is possible.
   - `semantic` ranks by meaning, comparing embeddings from a local model. It always returns the 10 closest workshops, even ones sharing no word with `q`.
   - `hybrid` fuses both rankings by reciprocal rank fusion: each list adds `1 / (60 + rank)` to a workshop's score, so workshops both modes rank well come first.
+  - `rerank` reorders hybrid's results with a local cross-encoder model, which reads `q` together with each workshop's title and description and scores how well they match. It returns the same workshops as `hybrid`, in a new order.
 
 ```sh
 curl "$API_URL/workshops/search?q=hands-on+data+for+beginners"

@@ -2,7 +2,7 @@
 
 Browse workshops, reserve a seat with a name and email, and cancel a reservation. Available seats update live in every open browser.
 
-Built with FastAPI, PostgreSQL, and Vue 3 + TypeScript. Nuxt UI runs through Vite; Python dependencies use uv and frontend dependencies use npm. Search uses LangChain with a local embedding model, so it needs no API key.
+Built with FastAPI, PostgreSQL, and Vue 3 + TypeScript. Nuxt UI runs through Vite; Python dependencies use uv and frontend dependencies use npm. Search uses LangChain with a local embedding model and a local reranking model, so it needs no API key.
 
 ## Implementation assumptions
 
@@ -20,11 +20,11 @@ With Docker and Compose installed, run from the repository root:
 docker compose up --build
 ```
 
-Open **<http://localhost:8080>**. Compose starts PostgreSQL, applies migrations, seeds 36 demo workshops, and starts the API and nginx frontend. The first build downloads the search model into the API image, so it takes a few minutes. **`migrate exited with code 0` is expected:** its startup work is complete. Only the web service publishes a port.
+Open **<http://localhost:8080>**. Compose starts PostgreSQL, applies migrations, seeds 36 demo workshops, and starts the API and nginx frontend. The first build downloads the search models into the API image, so it takes a few minutes. **`migrate exited with code 0` is expected:** its startup work is complete. Only the web service publishes a port.
 
 Try reserving the single seat in **Knife Skills**, then cancel with the same email. Open another browser window to see the count change.
 
-Search above the list, for example "how to make my team ship faster", and switch between hybrid, keyword and semantic ranking. Results keep their live seat counts. The search API is described in [API](docs/api.md).
+Search above the list, for example "how to make my team ship faster", and switch between hybrid, hybrid + rerank, keyword and semantic ranking. Results keep their live seat counts. The search API is described in [API](docs/api.md).
 
 Stop with Ctrl+C, then `docker compose down`. Data stays in the named volume. **`docker compose down --volumes` deletes all database data.**
 
@@ -45,13 +45,13 @@ bash -o pipefail -c 'docker compose --ansi never --progress quiet run --build --
   api python -u -m app.search.evaluate 2>&1 | tee eval-results.txt'
 ```
 
-The [evaluation script](backend/app/search/evaluate.py) runs hand-labeled queries against the demo catalog with the real search implementation and embedding model. For keyword, semantic and hybrid search it prints each query's top three workshops, then a summary table. An onnxruntime telemetry warning before the report is harmless.
+The [evaluation script](backend/app/search/evaluate.py) runs hand-labeled queries against the demo catalog with the real search implementation and models. For keyword, semantic, hybrid and reranked search it prints each query's top three workshops, then a summary table. An onnxruntime telemetry warning before the report is harmless.
 
 **Hit@3** is the share of queries with the intended workshop in the first three results. **MRR@10** is the mean reciprocal rank of the intended workshop in the first ten results, zero when absent. Higher is better, up to 100% and 1.
 
 Queries mix exact titles, specific skills, natural-language requests, and requests whose words also appear in other workshops; each has one intended workshop. This is a small, subjective relevance check, not a benchmark: it ignores other relevant workshops, latency and no-match behavior, and has no pass/fail threshold. Only errors exit nonzero.
 
-The index is built from the demo titles and descriptions in seed order, so no database or running stack is needed. The command builds the API image if needed and uses its bundled model offline; the first build needs internet access.
+The index is built from the demo titles and descriptions in seed order, so no database or running stack is needed. The command builds the API image if needed and uses its bundled models offline; the first build needs internet access.
 
 ## Develop locally
 

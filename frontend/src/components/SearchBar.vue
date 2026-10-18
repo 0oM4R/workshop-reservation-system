@@ -14,6 +14,7 @@ defineProps<{
 
 const MODES: { label: string; value: SearchMode }[] = [
   { label: 'Hybrid', value: 'hybrid' },
+  { label: 'Hybrid + rerank', value: 'rerank' },
   { label: 'Keyword', value: 'keyword' },
   { label: 'Semantic', value: 'semantic' },
 ]

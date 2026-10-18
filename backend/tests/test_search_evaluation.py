@@ -6,6 +6,7 @@ from langchain_core.embeddings import DeterministicFakeEmbedding
 from app.search import evaluate
 from app.search import index as search_index_module
 from app.seed import DEMO_WORKSHOPS
+from tests.helpers import LookupReranker
 
 
 @pytest.mark.parametrize(
@@ -42,13 +43,18 @@ def test_query_labels() -> None:
 async def test_evaluation_report(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Run all queries and report scores for every mode using fake embeddings."""
+    """Run all queries and report scores for every mode using fake models."""
 
     def fake_embeddings(*, model_name: str) -> DeterministicFakeEmbedding:
         assert model_name == search_index_module.EMBEDDING_MODEL
         return DeterministicFakeEmbedding(size=8)
 
+    def fake_cross_encoder(*, model_name: str) -> LookupReranker:
+        assert model_name == search_index_module.RERANK_MODEL
+        return LookupReranker({})
+
     monkeypatch.setattr(search_index_module, "FastEmbedEmbeddings", fake_embeddings)
+    monkeypatch.setattr(search_index_module, "TextCrossEncoder", fake_cross_encoder)
     await evaluate.main()
     output = capsys.readouterr().out
     mode_count = len(evaluate.SearchMode)

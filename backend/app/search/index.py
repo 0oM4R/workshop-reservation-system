@@ -1,11 +1,14 @@
-"""Rank workshops in memory by keyword, semantic or hybrid search."""
+"""Rank workshops in memory by keyword, semantic, hybrid or reranked search."""
 
+import asyncio
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 
 from fastapi import Request
+from fastembed.rerank.cross_encoder import TextCrossEncoder
 from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
@@ -17,8 +20,9 @@ from py_rust_stemmers import SnowballStemmer
 from app.db import session_factory
 from app.services import workshops
 
-# Must match backend/Dockerfile, which downloads it at build time.
+# Both must match backend/Dockerfile, which downloads them at build time.
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
+RERANK_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
 RESULT_LIMIT = 10
 # The usual reciprocal rank fusion offset: it keeps one list's first place
 # from outweighing a workshop that ranks well in both lists.
@@ -40,6 +44,7 @@ class SearchMode(StrEnum):
     KEYWORD = "keyword"
     SEMANTIC = "semantic"
     HYBRID = "hybrid"
+    RERANK = "rerank"
 
 
 @dataclass(frozen=True)
@@ -166,21 +171,52 @@ def fuse_by_reciprocal_rank(
     return fused_ids
 
 
+class Reranker(Protocol):
+    """Scores how well each document answers a query, as TextCrossEncoder does."""
+
+    def rerank(self, query: str, documents: Iterable[str]) -> Iterable[float]:
+        """Return one score per document, in order; higher is more relevant."""
+        ...
+
+
+def score_texts(reranker: Reranker, query: str, texts: list[str]) -> list[float]:
+    """Score each text against the query, in order; higher is more relevant."""
+    # FastEmbed scores lazily: list() makes the model run now, on this thread.
+    return list(reranker.rerank(query, texts))
+
+
+def order_by_score(workshop_ids: list[int], scores: list[float]) -> list[int]:
+    """Sort workshop IDs by their scores, best first."""
+    score_by_id: dict[int, float] = {}
+    for workshop_id, score in zip(workshop_ids, scores, strict=True):
+        score_by_id[workshop_id] = score
+
+    ordered_ids = list(workshop_ids)
+    ordered_ids.sort(key=lambda workshop_id: score_by_id[workshop_id], reverse=True)
+    return ordered_ids
+
+
 class SearchIndex:
     """Search workshops by keyword, by meaning, or both."""
 
     def __init__(
-        self, documents: Sequence[SearchDocument], embeddings: Embeddings
+        self,
+        documents: Sequence[SearchDocument],
+        embeddings: Embeddings,
+        reranker: Reranker,
     ) -> None:
-        """Build both retrievers; blocks while embedding."""
+        """Build both retrievers and keep texts to rerank; blocks while embedding."""
         retriever_documents: list[Document] = []
+        self._texts_by_id: dict[int, str] = {}
         for workshop in documents:
             retriever_documents.append(workshop.as_document())
+            self._texts_by_id[workshop.workshop_id] = workshop.text
 
         self._keyword_retriever = build_keyword_retriever(retriever_documents)
         self._semantic_retriever = build_semantic_retriever(
             retriever_documents, embeddings
         )
+        self._reranker = reranker
 
     async def search(self, query: str, mode: SearchMode) -> list[int]:
         """Return matching workshop IDs, best first."""
@@ -190,13 +226,32 @@ class SearchIndex:
         if mode == SearchMode.SEMANTIC:
             return await self._search_semantic(query)
 
-        # Hybrid: both rankings, fused.
+        hybrid_ids = await self._search_hybrid(query)
+        if mode == SearchMode.HYBRID:
+            return hybrid_ids
+
+        return await self._rerank(query, hybrid_ids)
+
+    async def _search_hybrid(self, query: str) -> list[int]:
+        """Return the top workshops of both rankings, fused."""
         keyword_ids = await self._search_keyword(query)
         semantic_ids = await self._search_semantic(query)
         hybrid_ids = fuse_by_reciprocal_rank(
             keyword_ids=keyword_ids, semantic_ids=semantic_ids
         )
         return hybrid_ids[:RESULT_LIMIT]
+
+    async def _rerank(self, query: str, candidate_ids: list[int]) -> list[int]:
+        """Reorder the candidates by the reranker's score for each one's text."""
+        if not candidate_ids:
+            return []
+
+        texts: list[str] = []
+        for workshop_id in candidate_ids:
+            texts.append(self._texts_by_id[workshop_id])
+        # The model keeps the CPU busy; on a thread, SSE streams stay responsive.
+        scores = await asyncio.to_thread(score_texts, self._reranker, query, texts)
+        return order_by_score(candidate_ids, scores)
 
     async def _search_keyword(self, query: str) -> list[int]:
         """Return IDs of workshops sharing a word with the query, best first."""
@@ -217,6 +272,11 @@ def load_embeddings() -> Embeddings:
     return FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
 
 
+def load_reranker() -> Reranker:
+    """Load the reranking model bundled in the API image."""
+    return TextCrossEncoder(model_name=RERANK_MODEL)
+
+
 async def load_search_index() -> SearchIndex:
     """Load every workshop's text and index it."""
     async with session_factory() as session:
@@ -226,7 +286,7 @@ async def load_search_index() -> SearchIndex:
     for row in rows:
         search_documents.append(SearchDocument(row.id, row.title, row.description))
 
-    return SearchIndex(search_documents, load_embeddings())
+    return SearchIndex(search_documents, load_embeddings(), load_reranker())
 
 
 def get_search_index(request: Request) -> SearchIndex:

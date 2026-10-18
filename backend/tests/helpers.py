@@ -1,5 +1,6 @@
 """Types shared by fixtures and tests; conftest itself shouldn't be imported."""
 
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Protocol
 
@@ -19,6 +20,21 @@ class CreateWorkshop(Protocol):
     ) -> int:
         """Call signature of the `create_workshop` fixture."""
         ...
+
+
+class LookupReranker:
+    """Reranker scores read from a table, so reranked order is known in advance."""
+
+    def __init__(self, scores: dict[str, float]) -> None:
+        """Score each text as the table gives it; texts not in it score 0."""
+        self.scores = scores
+
+    def rerank(self, query: str, documents: Iterable[str]) -> list[float]:
+        """Look up each document's score; the query is ignored."""
+        scores: list[float] = []
+        for document in documents:
+            scores.append(self.scores.get(document, 0.0))
+        return scores
 
 
 async def reserve(

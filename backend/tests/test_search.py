@@ -19,10 +19,11 @@ from app.search.index import (
     fuse_by_reciprocal_rank,
     get_search_index,
     load_search_index,
+    order_by_score,
     tokenize,
     workshop_ids_of,
 )
-from tests.helpers import CreateWorkshop
+from tests.helpers import CreateWorkshop, LookupReranker
 
 SOURDOUGH = SearchDocument(
     1, "Sourdough Baking", "Bake a loaf of sourdough bread from your own starter."
@@ -30,7 +31,7 @@ SOURDOUGH = SearchDocument(
 PASTRY = SearchDocument(2, "Pastry Basics", "Bake bread rolls and croissants.")
 BIKES = SearchDocument(3, "Bike Repair", "Fix a flat tire and adjust the brakes.")
 QUERY = "sourdough bread"
-MODES = [SearchMode.KEYWORD, SearchMode.SEMANTIC, SearchMode.HYBRID]
+MODES = list(SearchMode)
 # Chosen so semantic search ranks Pastry, then Bikes, then Sourdough: the
 # opposite of keyword search for Sourdough, and Bikes shares no word with QUERY.
 VECTORS = {
@@ -39,6 +40,9 @@ VECTORS = {
     BIKES.text: [1.0, 1.0],
     SOURDOUGH.text: [0.0, 1.0],
 }
+# The reranker reads Sourdough as the best answer, then Pastry, then Bikes:
+# a different order from hybrid's Pastry, Sourdough, Bikes.
+RERANK_SCORES = {SOURDOUGH.text: 9.0, PASTRY.text: 2.5, BIKES.text: -4.0}
 
 
 class LookupEmbeddings(Embeddings):
@@ -65,6 +69,11 @@ def fake_embeddings() -> Embeddings:
     return DeterministicFakeEmbedding(size=8)
 
 
+def fake_reranker() -> LookupReranker:
+    """Score every text 0, so reranking keeps hybrid's order."""
+    return LookupReranker({})
+
+
 def documents_of(workshops: list[SearchDocument]) -> list[Document]:
     """Wrap workshops as LangChain documents, the way the index does."""
     documents: list[Document] = []
@@ -74,8 +83,12 @@ def documents_of(workshops: list[SearchDocument]) -> list[Document]:
 
 
 def build_index() -> SearchIndex:
-    """Index the three sample workshops with the lookup embeddings."""
-    return SearchIndex([SOURDOUGH, PASTRY, BIKES], LookupEmbeddings(VECTORS))
+    """Index the three sample workshops with the lookup embeddings and scores."""
+    return SearchIndex(
+        [SOURDOUGH, PASTRY, BIKES],
+        LookupEmbeddings(VECTORS),
+        LookupReranker(RERANK_SCORES),
+    )
 
 
 # Building blocks, one layer at a time.
@@ -152,6 +165,11 @@ def test_fusion_breaks_ties_in_favor_of_keyword() -> None:
     assert fuse_by_reciprocal_rank(semantic_ids=[7], keyword_ids=[5]) == [5, 7]
 
 
+def test_order_by_score_puts_the_highest_score_first() -> None:
+    """Higher scores first, negative ones last; a tie keeps its incoming order."""
+    assert order_by_score([4, 5, 6, 7], [0.5, 2.0, 0.5, -3.0]) == [5, 4, 6, 7]
+
+
 # The wired-up index and GET /api/workshops/search.
 
 
@@ -181,7 +199,7 @@ async def test_keyword_keeps_matches_that_bm25_scores_zero_or_below(
     documents: list[SearchDocument] = []
     for number, title in enumerate(titles, start=1):
         documents.append(SearchDocument(number, title, ""))
-    index = SearchIndex(documents, fake_embeddings())
+    index = SearchIndex(documents, fake_embeddings(), fake_reranker())
 
     assert await index.search("pottery", SearchMode.KEYWORD) == expected
 
@@ -196,6 +214,28 @@ async def test_hybrid_fuses_keyword_and_semantic_ranks() -> None:
     assert await build_index().search(QUERY, SearchMode.HYBRID) == [2, 1, 3]
 
 
+async def test_rerank_reorders_hybrid_results_by_reranker_score() -> None:
+    """Hybrid gives Pastry, Sourdough, Bikes; the reranker puts Sourdough first."""
+    assert await build_index().search(QUERY, SearchMode.RERANK) == [1, 2, 3]
+
+
+async def test_rerank_only_reorders_hybrid_results() -> None:
+    """The reranker never adds or drops a workshop, even one it scores highest."""
+    documents: list[SearchDocument] = []
+    scores: dict[str, float] = {}
+    for number in range(1, RESULT_LIMIT + 5):
+        document = SearchDocument(number, f"Workshop {number}", "Learn something new.")
+        documents.append(document)
+        # Higher numbers score higher, including ones hybrid leaves out.
+        scores[document.text] = float(number)
+    index = SearchIndex(documents, fake_embeddings(), LookupReranker(scores))
+
+    hybrid_ids = await index.search("learn", SearchMode.HYBRID)
+    reranked_ids = await index.search("learn", SearchMode.RERANK)
+
+    assert reranked_ids == sorted(hybrid_ids, reverse=True)
+
+
 @pytest.mark.parametrize("mode", MODES)
 async def test_search_returns_at_most_the_result_limit(mode: SearchMode) -> None:
     """Even when every workshop matches, return only the top results."""
@@ -204,7 +244,7 @@ async def test_search_returns_at_most_the_result_limit(mode: SearchMode) -> None
         documents.append(
             SearchDocument(number, f"Workshop {number}", "Learn something new.")
         )
-    index = SearchIndex(documents, fake_embeddings())
+    index = SearchIndex(documents, fake_embeddings(), fake_reranker())
 
     assert len(await index.search("learn", mode)) == RESULT_LIMIT
 
@@ -212,18 +252,20 @@ async def test_search_returns_at_most_the_result_limit(mode: SearchMode) -> None
 @pytest.mark.parametrize("mode", MODES)
 async def test_an_empty_index_finds_nothing(mode: SearchMode) -> None:
     """No workshops, no results."""
-    index = SearchIndex([], fake_embeddings())
+    index = SearchIndex([], fake_embeddings(), fake_reranker())
 
     assert await index.search(QUERY, mode) == []
 
 
 async def test_workshops_made_only_of_stop_words_are_found_only_by_meaning() -> None:
-    """BM25 can't index them, so keyword finds nothing; semantic and hybrid do."""
-    index = SearchIndex([SearchDocument(1, "The", "and")], fake_embeddings())
+    """BM25 can't index them, so keyword finds nothing; the other modes do."""
+    documents = [SearchDocument(1, "The", "and")]
+    index = SearchIndex(documents, fake_embeddings(), fake_reranker())
 
     assert await index.search("the", SearchMode.KEYWORD) == []
     assert await index.search("the", SearchMode.SEMANTIC) == [1]
     assert await index.search("the", SearchMode.HYBRID) == [1]
+    assert await index.search("the", SearchMode.RERANK) == [1]
 
 
 def fake_model(model_name: str) -> Embeddings:
@@ -231,11 +273,17 @@ def fake_model(model_name: str) -> Embeddings:
     return fake_embeddings()
 
 
+def fake_cross_encoder(model_name: str) -> LookupReranker:
+    """Stand in for the local reranking model, which tests never download."""
+    return fake_reranker()
+
+
 async def test_startup_indexes_every_workshop_in_the_database(
     create_workshop: CreateWorkshop, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The startup index reads every workshop from Postgres, for both modes."""
     monkeypatch.setattr(search_index_module, "FastEmbedEmbeddings", fake_model)
+    monkeypatch.setattr(search_index_module, "TextCrossEncoder", fake_cross_encoder)
     pottery = await create_workshop("pottery")
     baking = await create_workshop("baking")
     bikes = await create_workshop("bikes")
@@ -260,7 +308,12 @@ async def search_client() -> AsyncIterator[AsyncClient]:
 
 @pytest.mark.parametrize(
     ("mode", "expected"),
-    [("keyword", [1, 2]), ("semantic", [2, 3, 1]), ("hybrid", [2, 1, 3])],
+    [
+        ("keyword", [1, 2]),
+        ("semantic", [2, 3, 1]),
+        ("hybrid", [2, 1, 3]),
+        ("rerank", [1, 2, 3]),
+    ],
 )
 async def test_search_endpoint_ranks_by_the_chosen_mode(
     search_client: AsyncClient, mode: str, expected: list[int]

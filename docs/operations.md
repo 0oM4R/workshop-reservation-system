@@ -22,7 +22,7 @@ Compose sets `DATABASE_URL` to use host `db`. The listener derives a plain `post
 
 The frontend needs no environment variables: it uses `/api` and `/api/events` through nginx or Vite.
 
-The API image also sets `FASTEMBED_CACHE_PATH=/app/models`, where the search model is stored at build time, and `HF_HUB_OFFLINE=1`, so containers never download it. In host development, the first API start downloads the model (about 70 MB) into the system temp folder.
+The API image also sets `FASTEMBED_CACHE_PATH=/app/models`, where the search models are stored at build time, and `HF_HUB_OFFLINE=1`, so containers never download them. In host development, the first API start downloads the models (about 150 MB) into the system temp folder.
 
 ## Startup, shutdown, and persistence
 
@@ -60,7 +60,7 @@ Then run `make dev-db` and `make test`. Tests rebuild the test schema; never poi
 | API docs do not open                   | In host development, visit `http://localhost:8000/docs`; the proxies forward only `/api`.                                                               |
 | Health is OK but requests fail         | `/api/health` checks HTTP liveness only. Check `/api/workshops`, API logs, and the event stream.                                                        |
 | A submission times out                 | It may have committed. Retry with the same workshop and email after the ten-second timeout.                                                             |
-| API exits at startup loading the model | In Compose, rebuild with `docker compose build api`: the image holds the model and never downloads it. Host development downloads it once, online.      |
+| API exits at startup loading a model   | In Compose, rebuild with `docker compose build api`: the image holds the models and never downloads them. Host development downloads them once, online. |
 
 To diagnose counter drift, run this query in `psql`. It returns only inconsistent workshops, without emails:
 

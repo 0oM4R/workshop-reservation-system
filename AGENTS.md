@@ -16,7 +16,7 @@ These hold under any load and drive most of the design below.
 - **Backend:** Python (version in `backend/.python-version`), FastAPI, SQLAlchemy 2.0 async on asyncpg, Alembic, pydantic-settings, sse-starlette. Managed with uv.
 - **Frontend:** Vue 3, TypeScript, Vite, Nuxt UI through its Vite plugin (not the Nuxt framework), Axios, Zod. Managed with npm.
 - **Database:** PostgreSQL.
-- **Search:** LangChain (`langchain-core`, `langchain-community`). Keyword: BM25 via `BM25Retriever` (`rank-bm25`), stemmed with `py-rust-stemmers`. Semantic: FastEmbed running `BAAI/bge-small-en-v1.5` locally on CPU, in LangChain's `InMemoryVectorStore`. Hybrid: our own reciprocal rank fusion of both.
+- **Search:** LangChain (`langchain-core`, `langchain-community`). Keyword: BM25 via `BM25Retriever` (`rank-bm25`), stemmed with `py-rust-stemmers`. Semantic: FastEmbed running `BAAI/bge-small-en-v1.5` locally on CPU, in LangChain's `InMemoryVectorStore`. Hybrid: our own reciprocal rank fusion of both. Rerank: FastEmbed's `TextCrossEncoder` running `Xenova/ms-marco-MiniLM-L-6-v2` on CPU reorders hybrid's results.
 - **Quality:** Ruff, pyright, pytest (pytest-asyncio, httpx); ESLint, Prettier, vue-tsc, Vitest. CI is GitHub Actions on every pull request and every push to `development`.
 
 ## Layout
@@ -99,15 +99,16 @@ Reserving is one transaction, in this order:
 - All routes live under `/api`; nginx and the Vite proxy forward the path unchanged. The SSE stream is `GET /api/events`.
 - Validate every input server-side with Pydantic. Frontend validation is only for feedback.
 - Responses expose `remaining` seats and never include other people's emails. Emails are trimmed and compared case-insensitively.
-- Search is `GET /api/workshops/search?q=…&mode=hybrid|keyword|semantic` (`hybrid` by default) and returns ids only, best first; rows and seat counts come from the list, so `remaining` has one source.
+- Search is `GET /api/workshops/search?q=…&mode=hybrid|rerank|keyword|semantic` (`hybrid` by default) and returns ids only, best first; rows and seat counts come from the list, so `remaining` has one source.
 - Cancelling is `POST /api/workshops/{id}/reservations/cancel` with the email used to reserve. For a known workshop it always returns 200 with the same message, so a retried cancel never looks like a failure; an unknown workshop returns 404. No endpoint lists reservations by email.
 
 ## Search
 
 - The API builds the index in memory at startup; searches never query the database.
 - Keyword search decides a match by shared words, then ranks matches by BM25 score. Okapi BM25 scores a word found in half the workshops or more at 0 or below, so filtering on the score would drop real matches.
-- Nothing is downloaded at runtime: the API image fetches the embedding model at build time and sets `HF_HUB_OFFLINE`. Keep `EMBEDDING_MODEL` in `app/search/index.py` and the Dockerfile in step.
-- Tests never load the real model: they build a `SearchIndex` on fake embeddings and override `get_search_index`.
+- Reranking only reorders hybrid's top 10; it never adds or drops a workshop. The model runs in `asyncio.to_thread`, so it never blocks the event loop.
+- Nothing is downloaded at runtime: the API image fetches the embedding and reranking models at build time and sets `HF_HUB_OFFLINE`. Keep `EMBEDDING_MODEL` and `RERANK_MODEL` in `app/search/index.py` and the Dockerfile in step.
+- Tests never load the real models: they build a `SearchIndex` on fake embeddings and a `LookupReranker`, and override `get_search_index`.
 
 ## Database and migrations
 
