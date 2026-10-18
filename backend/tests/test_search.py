@@ -8,6 +8,7 @@ from app.search.index import (
     SearchDocument,
     build_keyword_retriever,
     build_semantic_retriever,
+    fuse_by_reciprocal_rank,
     tokenize,
     workshop_ids_of,
 )
@@ -117,3 +118,18 @@ def test_semantic_retriever_returns_at_most_the_result_limit() -> None:
     retriever = build_semantic_retriever(documents_of(workshops), fake_embeddings())
 
     assert len(retriever.invoke("anything")) == RESULT_LIMIT
+
+
+def test_fusion_puts_workshops_both_lists_rank_well_first() -> None:
+    """Second and first (1/62 + 1/61) beats first and third (1/61 + 1/63)."""
+    keyword_ids = [1, 2]
+    semantic_ids = [2, 3, 1]
+
+    assert fuse_by_reciprocal_rank(
+        keyword_ids=keyword_ids, semantic_ids=semantic_ids
+    ) == [2, 1, 3]
+
+
+def test_fusion_breaks_ties_in_favor_of_keyword() -> None:
+    """Equal scores: the keyword match comes first."""
+    assert fuse_by_reciprocal_rank(semantic_ids=[7], keyword_ids=[5]) == [5, 7]

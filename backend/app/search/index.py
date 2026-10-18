@@ -13,6 +13,9 @@ from langchain_core.vectorstores import InMemoryVectorStore, VectorStoreRetrieve
 from py_rust_stemmers import SnowballStemmer
 
 RESULT_LIMIT = 10
+# The usual reciprocal rank fusion offset: it keeps one list's first place
+# from outweighing a workshop that ranks well in both lists.
+RRF_RANK_OFFSET = 60
 WORKSHOP_ID = "workshop_id"
 # Common words would match unrelated workshops.
 STOP_WORDS = frozenset(
@@ -132,6 +135,28 @@ def build_semantic_retriever(
     vector_store.add_documents(documents)
 
     return vector_store.as_retriever(search_kwargs={"k": RESULT_LIMIT})
+
+
+def add_rank_scores(scores: dict[int, float], ranked_ids: list[int]) -> None:
+    """Add one ranking's contributions to the shared scores."""
+    for rank, workshop_id in enumerate(ranked_ids, start=1):
+        contribution = 1 / (RRF_RANK_OFFSET + rank)
+        scores[workshop_id] = scores.get(workshop_id, 0.0) + contribution
+
+
+def fuse_by_reciprocal_rank(
+    *, keyword_ids: list[int], semantic_ids: list[int]
+) -> list[int]:
+    """Merge ranked workshop IDs: each list adds 1 / (RRF_RANK_OFFSET + rank)."""
+    # Ranks, not scores: BM25 and cosine scores use different scales.
+    scores: dict[int, float] = {}
+    add_rank_scores(scores, keyword_ids)
+    add_rank_scores(scores, semantic_ids)
+
+    fused_ids = list(scores.keys())
+    # The sort is stable, so tied workshops keep first-seen order: keyword first.
+    fused_ids.sort(key=lambda workshop_id: scores[workshop_id], reverse=True)
+    return fused_ids
 
 
 class SearchIndex:
