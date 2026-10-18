@@ -1,6 +1,6 @@
 # Workshop Reservations
 
-Browse workshops and their remaining seats, reserve a seat with a name and email, and cancel a reservation. Seat counts update live in every open browser.
+Browse and search workshops and their remaining seats, reserve a seat with a name and email, and cancel a reservation. Seat counts update live in every open browser.
 
 ## Guarantees
 
@@ -16,16 +16,17 @@ These hold under any load and drive most of the design below.
 - **Backend:** Python (version in `backend/.python-version`), FastAPI, SQLAlchemy 2.0 async on asyncpg, Alembic, pydantic-settings, sse-starlette. Managed with uv.
 - **Frontend:** Vue 3, TypeScript, Vite, Nuxt UI through its Vite plugin (not the Nuxt framework), Axios, Zod. Managed with npm.
 - **Database:** PostgreSQL.
+- **Search:** LangChain (`langchain-core`, `langchain-community`). Keyword: BM25 via `BM25Retriever` (`rank-bm25`), stemmed with `py-rust-stemmers`. Semantic: FastEmbed running `BAAI/bge-small-en-v1.5` locally on CPU, in LangChain's `InMemoryVectorStore`. Hybrid: our own reciprocal rank fusion of both. Rerank: FastEmbed's `TextCrossEncoder` running `Xenova/ms-marco-MiniLM-L-6-v2` on CPU reorders hybrid's results.
 - **Quality:** Ruff, pyright, pytest (pytest-asyncio, httpx); ESLint, Prettier, vue-tsc, Vitest. CI is GitHub Actions on every pull request and every push to `development`.
 
 ## Layout
 
-- `backend/`: the API (`app/`), Alembic migrations, tests
+- `backend/`: the API (`app/`, with search in `app/search/`), Alembic migrations, tests
 - `frontend/`: the Vue app and the nginx config for the `web` image
 - `compose.yaml`: `db`, `migrate` (runs migrations and the seed script, then exits 0), `api`, and `web` (nginx serving the built frontend and proxying `/api/*` to `api`). Only `web` publishes a port.
 - `compose.dev.yaml`: adds the published Postgres port for `make dev-db`; not part of the full stack
-- `Makefile`: `dev-db`, `dev-api`, `dev-web`, `lint`, `test`
-- `.github/workflows/ci.yml`: lint, backend and frontend tests, and a Compose stack start plus the SSE smoke test, on every pull request and every push to `development`
+- `Makefile`: `dev-db`, `dev-api`, `dev-web`, `lint`, `test`, `evaluate`
+- `.github/workflows/ci.yml`: lint, backend and frontend tests, and a Compose stack start plus the SSE and search smoke tests, on every pull request and every push to `development`
 
 ## Commands
 
@@ -35,8 +36,9 @@ make dev-api                                         # dev-db, then the API on :
 make dev-web                                         # Vite dev server; proxies /api to :8000
 make lint                                            # Ruff, pyright, ESLint, Prettier, vue-tsc
 make test                                            # pytest (needs make dev-db) and Vitest
+make evaluate                                        # search relevance per mode in the API image; no stack needed
 docker compose up --build                            # full stack through nginx on :8080
-cd backend && uv run pytest smoke                    # SSE smoke test; needs the full stack up
+cd backend && uv run pytest smoke                    # SSE and search smoke tests; need the full stack up
 ```
 
 Run `make lint` and `make test` before calling a change done; CI runs the same targets.
@@ -97,19 +99,28 @@ Reserving is one transaction, in this order:
 - All routes live under `/api`; nginx and the Vite proxy forward the path unchanged. The SSE stream is `GET /api/events`.
 - Validate every input server-side with Pydantic. Frontend validation is only for feedback.
 - Responses expose `remaining` seats and never include other people's emails. Emails are trimmed and compared case-insensitively.
+- Search is `GET /api/workshops/search?q=…&mode=hybrid|rerank|keyword|semantic` (`hybrid` by default) and returns ids only, best first; rows and seat counts come from the list, so `remaining` has one source.
 - Cancelling is `POST /api/workshops/{id}/reservations/cancel` with the email used to reserve. For a known workshop it always returns 200 with the same message, so a retried cancel never looks like a failure; an unknown workshop returns 404. No endpoint lists reservations by email.
+
+## Search
+
+- The API builds the index in memory at startup; searches never query the database.
+- Keyword search decides a match by shared words, then ranks matches by BM25 score. Okapi BM25 scores a word found in half the workshops or more at 0 or below, so filtering on the score would drop real matches.
+- Reranking only reorders hybrid's top 10; it never adds or drops a workshop. The model runs in `asyncio.to_thread`, so it never blocks the event loop.
+- Nothing is downloaded at runtime: the API image fetches the embedding and reranking models at build time and sets `HF_HUB_OFFLINE`. Keep `EMBEDDING_MODEL` and `RERANK_MODEL` in `app/search/index.py` and the Dockerfile in step.
+- Tests never load the real models: they build a `SearchIndex` on fake embeddings and a `LookupReranker`, and override `get_search_index`.
 
 ## Database and migrations
 
 - Never edit a merged migration; add a new one. Autogenerate can miss CHECK constraints and expression or partial indexes, so review every generated file.
-- Migrations hold the schema and required reference data. Demo data lives in the seed script (`python -m app.seed`), which `make dev-db` and the `migrate` service always run, and is safe to rerun (`ON CONFLICT DO NOTHING` on a fixed slug).
+- Migrations hold the schema and required reference data. Demo data lives in the seed script (`python -m app.seed`), which `make dev-db` and the `migrate` service always run, and is safe to rerun (upsert on a fixed slug; only the description changes).
 
 ## Testing
 
 - Backend tests run against real Postgres (`workshops_test`). Never mock the database or use SQLite: the guarantees live in SQL (the conditional UPDATE, the partial unique index, row locks, NOTIFY on commit).
 - Truncate tables between tests. Don't roll back per-test transactions; concurrency tests need separate connections and committed data.
 - Changes to reserving, cancelling or events need tests that prove: parallel reserves never exceed capacity; a repeated email gives one reservation and a 200; a full workshop returns 409 with the counter unchanged; a double cancel decrements once; `reserved` equals active reservations after a burst; events fire only after commit.
-- The SSE smoke test runs against the full Compose stack through nginx, not in-process.
+- The SSE and search smoke tests run against the full Compose stack through nginx, not in-process.
 - Frontend unit tests (Vitest) mock Axios and `EventSource`.
 
 ## Frontend
@@ -119,6 +130,7 @@ Reserving is one transaction, in this order:
 - `remaining` changes only from a list load or a stream event, never from a reserve response: the stream delivers changes in commit order, and a response can arrive after a newer event. While the stream is down, a successful reserve or cancel reloads the list instead. A list load applies again the events that arrived while it was in flight, since those may be newer.
 - Disable Reserve and Cancel while a request is in flight; requests time out after 10 s so a hung one can't keep them disabled.
 - "You're booked" only knows this tab's bookings, so it never hides Reserve.
+- Search state lives in `useSearch()`: it waits for a pause in typing, keeps only the latest response, and maps the ranked ids onto the live list from `useWorkshops()`, so results keep live seat counts.
 - Forms use Nuxt UI's `UForm` with a Zod schema. API response types are hand-written in one file.
 
 ## Conventions

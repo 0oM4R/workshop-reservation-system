@@ -2,6 +2,7 @@
 export interface Workshop {
   id: number
   title: string
+  description: string
   starts_at: string
   capacity: number
   remaining: number
@@ -25,3 +26,9 @@ export interface SeatsChanged {
   workshop_id: number
   remaining: number
 }
+
+/**
+ * How `GET /api/workshops/search` ranks: by shared words, by meaning, both combined, or both
+ * combined and then reordered by a reranking model.
+ */
+export type SearchMode = 'hybrid' | 'rerank' | 'keyword' | 'semantic'

@@ -7,7 +7,7 @@ import type { ReserveValues } from '../schemas'
 import CancelForm from './CancelForm.vue'
 import ReserveForm from './ReserveForm.vue'
 
-const MAX_SEAT_DOTS = 20
+const MAX_SEAT_DOTS = 15
 
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: 'short' })
 const dayAndTimeFormat = new Intl.DateTimeFormat(undefined, {
@@ -40,7 +40,6 @@ const cancelOpen = ref(false)
 
 const startsAt = computed(() => new Date(props.workshop.starts_at))
 const isFull = computed(() => props.workshop.remaining === 0)
-const takenSeats = computed(() => props.workshop.capacity - props.workshop.remaining)
 const seatsLabel = computed(() =>
   isFull.value ? 'Full' : `${props.workshop.remaining} of ${props.workshop.capacity} seats left`,
 )
@@ -65,7 +64,7 @@ function onCancelled(outcome: CancelOutcome) {
 
 <template>
   <article
-    class="rounded-[1.25rem] bg-default p-5 shadow-[0_3px_0_var(--ui-border-accented)] ring-1 ring-default sm:p-6"
+    class="flex flex-col rounded-[1.25rem] bg-default p-5 shadow-[0_3px_0_var(--ui-border-accented)] ring-1 ring-default sm:p-6"
   >
     <div class="flex items-start gap-4">
       <time
@@ -86,6 +85,10 @@ function onCancelled(outcome: CancelOutcome) {
       </div>
     </div>
 
+    <p class="mt-4 line-clamp-3 text-sm text-default" :title="workshop.description">
+      {{ workshop.description }}
+    </p>
+
     <div class="mt-5">
       <div
         v-if="workshop.capacity <= MAX_SEAT_DOTS"
@@ -97,7 +100,9 @@ function onCancelled(outcome: CancelOutcome) {
           :key="seat"
           class="size-3.5 rounded-full motion-safe:transition-colors motion-safe:duration-700"
           :class="
-            seat <= takenSeats ? 'bg-(--ui-border-accented)' : 'bg-amber-400 dark:bg-amber-300'
+            seat <= workshop.remaining
+              ? 'bg-amber-400 dark:bg-amber-300'
+              : 'ring-2 ring-(--ui-border-accented) ring-inset'
           "
         />
       </div>
@@ -113,7 +118,7 @@ function onCancelled(outcome: CancelOutcome) {
       </p>
     </div>
 
-    <div class="mt-5 flex flex-wrap items-center gap-2">
+    <div class="mt-auto flex flex-wrap items-center gap-2 pt-5">
       <UBadge v-if="bookedEmail" color="primary" variant="soft" size="xl" class="rounded-full px-4">
         You're booked
       </UBadge>

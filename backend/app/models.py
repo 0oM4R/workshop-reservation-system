@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, func, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Text, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -23,6 +23,7 @@ class Workshop(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     slug: Mapped[str] = mapped_column(unique=True)
     title: Mapped[str]
+    description: Mapped[str] = mapped_column(Text, server_default="")
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     capacity: Mapped[int]
     reserved: Mapped[int] = mapped_column(default=0, server_default="0")

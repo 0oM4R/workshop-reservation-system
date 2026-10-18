@@ -1,4 +1,4 @@
-"""Request and response bodies of the API."""
+"""Request and response shapes of the API."""
 
 from datetime import datetime
 from typing import Annotated
@@ -13,11 +13,19 @@ class WorkshopOut(BaseModel):
 
     id: int
     title: str
+    description: str
     starts_at: datetime
     capacity: int
     remaining: int
 
 
+SEARCH_QUERY_MAX_LENGTH = 200
+SearchQuery = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=SEARCH_QUERY_MAX_LENGTH
+    ),
+]
 NAME_MAX_LENGTH = 100
 
 
