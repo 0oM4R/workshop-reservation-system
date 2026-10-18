@@ -1,10 +1,13 @@
 """Tests for the workshop search building blocks."""
 
 from langchain_core.documents import Document
+from langchain_core.embeddings import DeterministicFakeEmbedding, Embeddings
 
 from app.search.index import (
+    RESULT_LIMIT,
     SearchDocument,
     build_keyword_retriever,
+    build_semantic_retriever,
     tokenize,
     workshop_ids_of,
 )
@@ -15,6 +18,38 @@ SOURDOUGH = SearchDocument(
 PASTRY = SearchDocument(2, "Pastry Basics", "Bake bread rolls and croissants.")
 BIKES = SearchDocument(3, "Bike Repair", "Fix a flat tire and adjust the brakes.")
 QUERY = "sourdough bread"
+# Chosen so semantic search ranks Pastry, then Bikes, then Sourdough: the
+# opposite of keyword search for Sourdough, and Bikes shares no word with QUERY.
+VECTORS = {
+    QUERY: [1.0, 0.0],
+    PASTRY.text: [1.0, 0.0],
+    BIKES.text: [1.0, 1.0],
+    SOURDOUGH.text: [0.0, 1.0],
+}
+
+
+class LookupEmbeddings(Embeddings):
+    """Embeddings read from a table, so semantic ranks are known in advance."""
+
+    def __init__(self, vectors: dict[str, list[float]]) -> None:
+        """Embed each text as the vector the table gives it."""
+        self.vectors = vectors
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Look up each document's vector."""
+        vectors: list[list[float]] = []
+        for text in texts:
+            vectors.append(self.vectors[text])
+        return vectors
+
+    def embed_query(self, text: str) -> list[float]:
+        """Look up the query's vector."""
+        return self.vectors[text]
+
+
+def fake_embeddings() -> Embeddings:
+    """Random but repeatable vectors, for tests that don't check semantic ranks."""
+    return DeterministicFakeEmbedding(size=8)
 
 
 def documents_of(workshops: list[SearchDocument]) -> list[Document]:
@@ -64,3 +99,21 @@ def test_keyword_retriever_needs_a_searchable_word() -> None:
 
     assert build_keyword_retriever([]) is None
     assert build_keyword_retriever(stop_words_only) is None
+
+
+def test_semantic_retriever_returns_closest_vectors_first() -> None:
+    """Pastry, Bikes, Sourdough by cosine similarity, shared words or not."""
+    documents = documents_of([SOURDOUGH, PASTRY, BIKES])
+    retriever = build_semantic_retriever(documents, LookupEmbeddings(VECTORS))
+
+    assert workshop_ids_of(retriever.invoke(QUERY)) == [2, 3, 1]
+
+
+def test_semantic_retriever_returns_at_most_the_result_limit() -> None:
+    """Every workshop has a nearest rank; only the top results come back."""
+    workshops: list[SearchDocument] = []
+    for number in range(1, RESULT_LIMIT + 5):
+        workshops.append(SearchDocument(number, f"Workshop {number}", "Learn."))
+    retriever = build_semantic_retriever(documents_of(workshops), fake_embeddings())
+
+    assert len(retriever.invoke("anything")) == RESULT_LIMIT
