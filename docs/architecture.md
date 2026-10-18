@@ -58,17 +58,17 @@ Cancellation changes only an active reservation and decrements the counter only 
 
 The seat update calls `pg_notify` in its `RETURNING` expression. PostgreSQL sends `{workshop_id, remaining}` on commit and discards it on rollback. Duplicate reserves and no-op cancels emit nothing.
 
-Each API process has a dedicated asyncpg LISTEN connection, separate from its SQLAlchemy pool. `PostgresBroadcaster` forwards notifications to local subscribers through `InProcessBroadcaster`, which also serves as the test fake. Each subscriber has a 64-event queue; falling behind closes its stream. SSE sends pings every 15 seconds and ends blocked sends after 30 seconds. nginx disables buffering and uses a one-hour read timeout.
+Each API process has a dedicated asyncpg LISTEN connection, separate from its SQLAlchemy pool. `PostgresBroadcaster` forwards notifications through `InProcessBroadcaster`, which also serves as the test fake. Bounded subscriber queues and send timeouts disconnect slow clients. SSE keepalives and nginx's disabled buffering support long-lived streams.
 
-A failed database listener retries after one second. Once subscribed again, it closes local streams so clients reconnect and reload changes missed during the outage. Notifications have no durable replay or event IDs.
+A failed database listener reconnects, then closes local streams so clients reconnect and reload changes missed during the outage. Notifications have no durable replay or event IDs.
 
 The frontend:
 
 - Loads the list immediately and whenever EventSource opens, including reconnects.
 - Patches counts from events, never from reserve responses that could arrive after newer events.
 - Reapplies events received during a list request and ignores older list responses once a newer response has been applied.
-- Reopens a closed EventSource after five seconds. While the stream is down, successful reserves and cancels trigger a list reload.
-- Disables submissions while a request runs, with a ten-second HTTP timeout. A timeout may follow a successful commit, so retry with the same email.
+- Reopens a closed EventSource. While the stream is down, successful reserves and cancels trigger a list reload.
+- Disables submissions while a request runs and times out hung requests. A timeout may follow a successful commit, so retry with the same email.
 
 ## Scaling path
 

@@ -11,24 +11,13 @@
 | `DATABASE_URL`      | `postgresql+asyncpg://workshops:workshops@localhost:5432/workshops`      | API, migrations, seed, listener |
 | `TEST_DATABASE_URL` | `postgresql+asyncpg://workshops:workshops@localhost:5432/workshops_test` | Backend tests                   |
 
-Compose sets `DATABASE_URL` to use host `db`. The listener derives a plain `postgresql://` URL for its dedicated asyncpg connection. The checked-in database credentials are for local development.
-
-| Entry point               | Address                                                      |
-| ------------------------- | ------------------------------------------------------------ |
-| Full stack                | `http://localhost:8080`                                      |
-| Host development frontend | Vite's printed URL, normally `http://localhost:5173`         |
-| Host development API      | `http://localhost:8000`                                      |
-| Host PostgreSQL           | `127.0.0.1:5432`, published only by the development override |
-
-The frontend needs no environment variables: it uses `/api` and `/api/events` through nginx or Vite.
+Compose sets `DATABASE_URL` to use host `db`. The checked-in credentials are for local development. The frontend uses `/api` through nginx or Vite and needs no environment variables. Addresses are in the [setup instructions](../README.md#run-with-docker).
 
 The API image also sets `FASTEMBED_CACHE_PATH=/app/models`, where the search models are stored at build time, and `HF_HUB_OFFLINE=1`, so containers never download them. In host development, the first API start downloads the models (about 150 MB) into the system temp folder.
 
 ## Startup, shutdown, and persistence
 
-For startup commands, see the [README](../README.md). Compose runs `db` → `migrate` → `api` → `web`. **`migrate` exiting with code 0 means success.** It applies migrations and seeds missing demo workshops before the API starts and builds its search index, which embeds every workshop and takes a few seconds.
-
-Inspect the stack with:
+Start the stack using the [README](../README.md#run-with-docker), then inspect it with:
 
 ```sh
 docker compose ps -a
@@ -36,7 +25,7 @@ docker compose logs --tail=100 migrate api db web
 curl --fail http://localhost:8080/api/workshops
 ```
 
-`docker compose down` retains the named `db-data` volume. **Adding `--volumes` deletes the database and all reservations.** Normal restarts and reseeding need no reset. For existing slugs the seed updates only the description; old dates, capacities and seat counts stay.
+`docker compose down` retains the named `db-data` volume. **Adding `--volumes` deletes the database and all reservations.** Normal restarts and [reseeding](../CONTRIBUTING.md#schema-and-demo-data) need no reset.
 
 The Postgres init script creates `workshops_test` only on first volume initialization. If that database is missing, create it while `db` is running:
 
@@ -62,28 +51,6 @@ Then run `make dev-db` and `make test`. Tests rebuild the test schema; never poi
 | A submission times out                 | It may have committed. Retry with the same workshop and email after the ten-second timeout.                                                             |
 | API exits at startup loading a model   | In Compose, rebuild with `docker compose build api`: the image holds the models and never downloads them. Host development downloads them once, online. |
 
-To diagnose counter drift, run this query in `psql`. It returns only inconsistent workshops, without emails:
-
-```sql
-SELECT w.id, w.reserved,
-       count(r.id) FILTER (WHERE r.status = 'active') AS active_reservations
-FROM workshops AS w
-LEFT JOIN reservations AS r ON r.workshop_id = w.id
-GROUP BY w.id, w.reserved
-HAVING w.reserved <> count(r.id) FILTER (WHERE r.status = 'active');
-```
-
-Investigate how writes bypassed the reservation service before planning a repair.
-
 ## Deployment boundary
 
-The Compose stack is a local demo. Before public deployment:
-
-- Add emailed confirmation links or logins and rate limiting. Anyone knowing an email can reserve, cancel, or retrieve its existing reservation's name.
-- Use HTTPS, managed secrets, and restricted database access.
-- Define retention and deletion rules for names and emails, including cancelled reservations; avoid logging request bodies.
-- Configure backups and test restoration. A persistent volume is not a backup.
-- Monitor request failures, latency, database connections, and listener recovery. Health checks alone do not verify reservation or event delivery.
-- Replace automatic demo seeding with a deliberate migration and reference-data process.
-
-See the [scaling path](architecture.md#scaling-path) before adding workers or replicas.
+This Compose stack is intended for local demonstration, not public deployment.

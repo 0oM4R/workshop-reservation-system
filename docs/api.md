@@ -45,11 +45,12 @@ IDs, dates, and remaining counts depend on your database. There is no pagination
 - `q` is trimmed, then must be 1–200 characters, else 422.
 - `mode` is `hybrid` (default), `rerank`, `keyword` or `semantic`, else 422.
   - `keyword` ranks by BM25. Workshops sharing no word with `q` are left out, so `[]` is possible.
-  - `semantic` ranks by meaning, comparing embeddings from a local model. It always returns the 10 closest workshops, even ones sharing no word with `q`.
+  - `semantic` ranks by meaning, comparing embeddings from a local model. It returns up to 10 closest workshops without a minimum relevance threshold, even ones sharing no word with `q`.
   - `hybrid` fuses both rankings by reciprocal rank fusion: each list adds `1 / (60 + rank)` to a workshop's score, so workshops both modes rank well come first.
   - `rerank` reorders hybrid's results with a local cross-encoder model, which reads `q` together with each workshop's title and description and scores how well they match. It returns the same workshops as `hybrid`, in a new order.
 
 ```sh
+API_URL=http://localhost:8080/api
 curl "$API_URL/workshops/search?q=hands-on+data+for+beginners"
 curl "$API_URL/workshops/search?q=how+to+make+my+team+ship+faster&mode=semantic"
 ```
@@ -144,6 +145,6 @@ data: {"workshop_id":1,"remaining":7}
 
 ```
 
-JSON whitespace may vary. Keepalive comments arrive every 15 seconds; they are not seat changes. Repeated reserves, no-op cancellations, and rolled-back transactions do not emit seat-change messages.
+Keepalive comments arrive every 15 seconds; they are not seat changes. Repeated reserves, no-op cancellations, and rolled-back transactions do not emit seat-change messages.
 
-The stream has no initial workshop snapshot, event IDs, or history replay. A client should load `/api/workshops` immediately and again whenever its stream opens or reconnects, then patch counts from events. Slow subscribers are disconnected rather than buffered indefinitely. Do not infer that a quiet stream means the workshop list is empty.
+The stream has no initial workshop snapshot, event IDs, or history replay. A client should load `/api/workshops` immediately and again whenever its stream opens or reconnects, then patch counts from events. Slow subscribers are disconnected rather than buffered indefinitely.

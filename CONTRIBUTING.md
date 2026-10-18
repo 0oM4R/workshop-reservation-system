@@ -4,7 +4,7 @@ Follow the [local setup](README.md#develop-locally) and [engineering rules](AGEN
 
 ## Checks
 
-Before calling a change done:
+After [local setup](README.md#develop-locally), run from the repository root:
 
 ```sh
 make lint
@@ -20,33 +20,10 @@ docker compose up -d --build --wait
 (cd backend && uv run pytest smoke)
 ```
 
-The [CI workflow](.github/workflows/ci.yml) runs on every pull request and push to `development`: lint, backend tests with PostgreSQL, frontend tests, and the Compose stack with the SSE smoke test.
+The [CI workflow](.github/workflows/ci.yml) runs on every pull request and push to `development`: lint, backend tests with PostgreSQL, frontend tests, and SSE and search smoke tests through the Compose stack.
 
 ## Schema and demo data
 
-After editing a model, create a new migration from `backend/`:
+Follow the [migration rules](AGENTS.md#database-and-migrations). Demo workshops live in [seed.py](backend/app/seed.py), run by both `make dev-db` and Compose's `migrate` service. Reseeding inserts missing slugs and updates existing descriptions while preserving reservations, capacities, and dates.
 
-```sh
-uv run alembic revision --autogenerate -m "describe the schema change"
-uv run alembic upgrade head
-```
-
-Review generated migrations: CHECK constraints and expression or partial indexes may need explicit operations. Never edit a merged migration. Test against a disposable database; downgrades can discard data.
-
-Migrations contain schema and required reference data. Demo workshops live in [seed.py](backend/app/seed.py). Both `make dev-db` and Compose's `migrate` service run it. To run it manually against the host development database:
-
-```sh
-(cd backend && uv run python -m app.seed)
-```
-
-Existing slugs are skipped, so rerunning preserves reservations, capacities, and dates.
-
-## Dependencies and configuration
-
-Use `uv add PACKAGE` in `backend/` or `npm install PACKAGE` in `frontend/`; use `--dev` or `--save-dev` for development dependencies. Include the manifest and lockfile changes in the review. Reproducible installs use `uv sync --locked` and `npm ci`. CI uses `npm ci --ignore-scripts` to skip lifecycle scripts, including Git hook installation.
-
-Define settings in [Settings](backend/app/settings.py) with local defaults, document them in [operations](docs/operations.md#configuration), and add container values to Compose when needed. Settings come from process environment variables; no `.env` file is loaded. Never commit secrets.
-
-## Keep docs current
-
-Update [API](docs/api.md) and frontend response types when routes change; [README](README.md) and [operations](docs/operations.md) when setup changes; [architecture](docs/architecture.md) when transaction or recovery behavior changes. Verify documented commands and use fictional personal data in examples.
+See [configuration](docs/operations.md#configuration) for database settings.
